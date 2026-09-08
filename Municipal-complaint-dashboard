@@ -1,1 +1,768 @@
+"""
+CITYFLOW AI — Municipal Road Intelligence Module
+Streamlit port of the HTML prototype.
 
+Run with:  streamlit run app.py
+"""
+
+import streamlit as st
+import pandas as pd
+import folium
+from streamlit_folium import st_folium
+import matplotlib.pyplot as plt
+import re
+
+# ============================================================
+# PAGE CONFIG
+# ============================================================
+st.set_page_config(
+    page_title="CityFlow AI — Road Intelligence Module",
+    page_icon="🛣️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# ============================================================
+# THEME / COLORS
+# ============================================================
+NAVY = "#0B3D66"
+NAVY_DARK = "#082A47"
+SAFFRON = "#FF9933"
+GREEN_FLAG = "#128807"
+BG = "#EEF2F6"
+BORDER = "#D7DEE6"
+TEXT = "#1B2733"
+MUTED = "#5B6B7A"
+
+SEV_COLORS = {
+    "crit": "#C62F1D", "high": "#B4690E", "med": "#8A7A0A",
+    "low": "#1E7A44", "review": "#1E5FA8",
+}
+SEV_BG = {
+    "crit": "#FBE4E1", "high": "#FBEBD6", "med": "#F7F1D4",
+    "low": "#DFF2E6", "review": "#E1EDF9",
+}
+SEV_LABEL = {"crit": "Critical", "high": "High", "med": "Medium", "low": "Low", "review": "Possible"}
+
+BHOPAL_CENTER = [23.2599, 77.4126]
+
+REPORTS = [
+    dict(id="PTH-2026-00841", loc="Hoshangabad Road, Misrod", ward="Ward 76",
+         lat=23.16083, lng=77.46833, sev="crit", status="ok", statusLabel="Confirmed",
+         det=340, seg="HBR-RD-042", time="02 Sep 2026 · 11:58 AM"),
+    dict(id="PTH-2026-00812", loc="MP Nagar Zone II", ward="Ward 42",
+         lat=23.22830, lng=77.43649, sev="high", status="ok", statusLabel="Confirmed",
+         det=190, seg="MPN-RD-011", time="01 Sep 2026 · 09:12 AM"),
+    dict(id="PTH-2026-00799", loc="Govindpura Main Road", ward="Ward 58",
+         lat=23.20944, lng=77.44778, sev="high", status="ok", statusLabel="Confirmed",
+         det=120, seg="GVP-RD-004", time="31 Aug 2026 · 06:40 PM"),
+    dict(id="PTH-2026-00775", loc="New Market, TT Nagar", ward="Ward 24",
+         lat=23.24170, lng=77.40120, sev="med", status="review", statusLabel="Under Review",
+         det=41, seg="NMK-RD-002", time="30 Aug 2026 · 08:05 AM"),
+    dict(id="PTH-2026-00760", loc="Indrapuri, Raisen Road", ward="Ward 64",
+         lat=23.25194, lng=77.46194, sev="low", status="ok", statusLabel="Confirmed",
+         det=16, seg="INP-RD-007", time="29 Aug 2026 · 05:22 PM"),
+    dict(id="PTH-2026-00744", loc="Ayodhya Bypass, near Bairagarh", ward="Ward 5",
+         lat=23.29500, lng=77.35500, sev="review", status="review", statusLabel="Under Review",
+         det=3, seg="AYB-RD-019", time="28 Aug 2026 · 07:51 AM"),
+]
+REPORTS_BY_ID = {r["id"]: r for r in REPORTS}
+
+# ============================================================
+# SESSION STATE
+# ============================================================
+if "page" not in st.session_state:
+    st.session_state.page = "command_center"
+if "selected_report" not in st.session_state:
+    st.session_state.selected_report = REPORTS[0]["id"]
+if "chat_log" not in st.session_state:
+    st.session_state.chat_log = [
+        ("user", "I need to reach office by 9:30 but can leave 15 minutes earlier."),
+        ("sys", "Arrival deadline = 9:30 AM\nDeparture flexibility = −15 minutes"),
+    ]
+
+def go(page_key, report_id=None):
+    st.session_state.page = page_key
+    if report_id:
+        st.session_state.selected_report = report_id
+
+# ============================================================
+# GLOBAL CSS
+# ============================================================
+st.markdown(f"""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+    html, body, [class*="css"] {{
+        font-family: 'Noto Sans', Arial, sans-serif;
+        color: {TEXT};
+    }}
+    .stApp {{ background: {BG}; }}
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    .block-container {{ padding-top: 1rem; padding-bottom: 3rem; max-width: 1200px; }}
+
+    /* Tricolor + gov header, breaking out of Streamlit's container */
+    .tricolor {{
+        width: 100vw; position: relative; left: 50%; right: 50%;
+        margin-left: -50vw; margin-right: -50vw;
+        height: 5px; display: flex; margin-top: -1rem;
+    }}
+    .tricolor span {{ flex: 1; }}
+    .tricolor .s1 {{ background: {SAFFRON}; }}
+    .tricolor .s2 {{ background: #fff; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; }}
+    .tricolor .s3 {{ background: {GREEN_FLAG}; }}
+
+    .util-bar {{
+        width: 100vw; position: relative; left: 50%; right: 50%;
+        margin-left: -50vw; margin-right: -50vw;
+        background: {NAVY_DARK}; color: #CBDCEA; font-size: 11.5px;
+        display: flex; justify-content: space-between; padding: 5px 24px;
+    }}
+    .gov-header {{
+        width: 100vw; position: relative; left: 50%; right: 50%;
+        margin-left: -50vw; margin-right: -50vw;
+        background: {NAVY}; color: #fff; padding: 14px 24px;
+        border-bottom: 3px solid {SAFFRON};
+        display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    }}
+    .gov-header .id {{ display:flex; align-items:center; gap:13px; }}
+    .emblem {{
+        width:40px; height:40px; border-radius:50%; background:#fff; flex-shrink:0;
+        display:flex; align-items:center; justify-content:center; box-shadow: inset 0 0 0 2px {NAVY};
+        font-size:18px;
+    }}
+    .gov-header .t1 {{ font-size:11px; color:#BFD6EA; }}
+    .gov-header .t2 {{ font-size:17px; font-weight:700; }}
+    .gov-header .t3 {{ font-size:11.5px; color:#BFD6EA; margin-top:2px; }}
+    .demo-badge {{
+        font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#3A2E00;
+        background:{SAFFRON}; padding:5px 10px; border-radius:2px; font-weight:600;
+    }}
+    .breadcrumb-bar {{
+        width: 100vw; position: relative; left: 50%; right: 50%;
+        margin-left: -50vw; margin-right: -50vw;
+        background:#F4F7FA; border-bottom:1px solid {BORDER}; padding:8px 24px;
+        font-size:11.5px; color:{MUTED}; display:flex; justify-content:space-between; margin-bottom: 1.2rem;
+    }}
+
+    h1.h {{ font-size:20px; font-weight:700; margin:0 0 4px; color:{NAVY_DARK}; }}
+    p.lede {{ color:{MUTED}; margin:0 0 18px; max-width:680px; }}
+    h2.sh {{ font-size:14px; font-weight:700; margin:0 0 4px; color:{NAVY_DARK}; }}
+    p.shsub {{ color:{MUTED}; font-size:12.3px; margin:0 0 12px; }}
+
+    .panel {{
+        background:#fff; border:1px solid {BORDER}; border-radius:2px;
+        padding:18px 20px; margin-bottom:14px; box-shadow:0 1px 2px rgba(20,40,60,.04);
+    }}
+    .kpi {{
+        background:#fff; border:1px solid {BORDER}; border-left:3px solid {NAVY}; border-radius:2px;
+        padding:14px 16px;
+    }}
+    .kpi .lbl {{ font-size:10.5px; color:#8A97A3; text-transform:uppercase; letter-spacing:.6px; margin-bottom:8px; }}
+    .kpi .val {{ font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:600; color:{NAVY_DARK}; }}
+    .kpi .delta {{ font-size:11px; margin-top:6px; color:{MUTED}; }}
+
+    .pill {{ display:inline-flex; align-items:center; gap:5px; font-size:11px; padding:3px 9px; border-radius:20px; font-weight:600; }}
+
+    .kv-row {{ border-bottom:1px dashed {BORDER}; padding: 6px 0; }}
+    .kv-k {{ font-size:10.5px; color:#8A97A3; text-transform:uppercase; letter-spacing:.5px; }}
+    .kv-v {{ font-family:'IBM Plex Mono',monospace; font-size:13px; color:{TEXT}; }}
+
+    .flow-step {{ background:#F4F7FA; border:1px solid {BORDER}; border-radius:2px; padding:9px 14px; font-size:12.5px; text-align:center; margin-bottom:2px; }}
+    .flow-step.hi {{ border-color:{NAVY}; color:#fff; background:{NAVY}; font-weight:600; }}
+    .flow-arrow {{ text-align:center; color:#8A97A3; font-size:13px; padding:1px 0; }}
+
+    .barrow-name {{ font-size:12px; color:{MUTED}; }}
+    .footnote {{ font-size:11px; color:#8A97A3; margin-top:6px; }}
+
+    .gov-footer {{
+        width: 100vw; position: relative; left: 50%; right: 50%;
+        margin-left: -50vw; margin-right: -50vw;
+        background:{NAVY_DARK}; color:#B9CEE0; padding:20px 28px; font-size:11.5px; margin-top:30px;
+    }}
+    .gov-footer .fine {{ margin-top:12px; padding-top:10px; border-top:1px solid #1D4568; color:#7F98AF; font-size:10.5px; line-height:1.6; }}
+
+    div[data-testid="stButton"] button {{
+        border-radius:2px; font-size:12.5px; font-weight:600;
+    }}
+    section[data-testid="stSidebar"] {{ background:#fff; border-right:1px solid {BORDER}; }}
+    section[data-testid="stSidebar"] .stButton button {{
+        width:100%; text-align:left; background:transparent; border:none; border-left:3px solid transparent;
+        color:{MUTED}; padding:6px 10px; font-size:12.8px;
+    }}
+    section[data-testid="stSidebar"] .stButton button:hover {{ background:#F2F6FA; color:{TEXT}; }}
+</style>
+""", unsafe_allow_html=True)
+
+# ============================================================
+# TOP GOV CHROME
+# ============================================================
+BREADCRUMBS = {
+    "command_center": "Home / Road Intelligence Module / Command Center",
+    "reports": "Home / Road Intelligence Module / Road Issue Reports",
+    "report_detail": "Home / Road Intelligence Module / Reports / Detail",
+    "evidence": "Home / Road Intelligence Module / Evidence",
+    "sensors": "Home / Road Intelligence Module / Sensor Validation",
+    "roadhealth": "Home / Road Intelligence Module / Road-Health Index",
+    "priority": "Home / Road Intelligence Module / Maintenance Priority",
+    "action": "Home / Road Intelligence Module / Municipal Action",
+    "impact": "Home / Road Intelligence Module / Traffic Impact",
+    "demand": "Home / Road Intelligence Module / Demand Forecast",
+    "departure": "Home / Road Intelligence Module / Departure Optimizer",
+    "support": "Home / Road Intelligence Module / Carpool & Multimodal",
+    "chat": "Home / Road Intelligence Module / Conversational Input",
+    "sumo": "Home / Road Intelligence Module / SUMO Simulation",
+    "privacy": "Home / Road Intelligence Module / Privacy & System",
+}
+
+st.markdown('<div class="tricolor"><span class="s1"></span><span class="s2"></span><span class="s3"></span></div>', unsafe_allow_html=True)
+st.markdown("""
+<div class="util-bar">
+  <div><a href="#" style="color:#CBDCEA;text-decoration:none;margin-right:14px;">Skip to Main Content</a>
+  <a href="#" style="color:#CBDCEA;text-decoration:none;margin-right:14px;">Screen Reader Access</a>
+  <a href="#" style="color:#CBDCEA;text-decoration:none;">Sitemap</a></div>
+  <div>Text size A- A A+ &nbsp;|&nbsp; हिन्दी</div>
+</div>
+""", unsafe_allow_html=True)
+st.markdown(f"""
+<div class="gov-header">
+  <div class="id">
+    <div class="emblem">🛣️</div>
+    <div>
+      <div class="t1">Urban Administration &amp; Development Department · Government of Madhya Pradesh</div>
+      <div class="t2">CITYFLOW AI — Municipal Road Intelligence Module</div>
+      <div class="t3">Bhopal Municipal Corporation · Road Condition Monitoring &amp; Traffic Impact Analysis</div>
+    </div>
+  </div>
+  <div class="demo-badge">DEMONSTRATION PROTOTYPE · SIMULATED DATA</div>
+</div>
+<div class="breadcrumb-bar">
+  <span>{BREADCRUMBS.get(st.session_state.page, "Home / Road Intelligence Module")}</span>
+  <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8A97A3;">Data as of 02-Sep-2026 11:58 IST · Not connected to a live municipal system</span>
+</div>
+""", unsafe_allow_html=True)
+
+# ============================================================
+# SIDEBAR NAVIGATION
+# ============================================================
+with st.sidebar:
+    st.markdown("<div style='font-size:10px;color:#8A97A3;text-transform:uppercase;letter-spacing:.8px;'>Module</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-weight:700;font-size:14.5px;color:{NAVY};margin-bottom:10px;'>Road Intelligence &amp; Maintenance</div>", unsafe_allow_html=True)
+
+    nav_groups = [
+        ("Overview", [("command_center", "▤ Command Center")]),
+        ("Detection & Validation", [
+            ("reports", "≡ Road Issue Reports"),
+            ("evidence", "▣ Location & Evidence"),
+            ("sensors", "∿ Sensor Validation"),
+        ]),
+        ("Municipal Ops", [
+            ("roadhealth", "♥ Road-Health Index"),
+            ("priority", "▲ Maintenance Priority"),
+            ("action", "✓ Municipal Action"),
+        ]),
+        ("Traffic Intelligence", [
+            ("impact", "⇄ CityFlow Traffic Impact"),
+            ("demand", "▦ Demand Forecast"),
+            ("departure", "◷ Departure Optimizer"),
+        ]),
+        ("Commuter Support", [
+            ("support", "⇶ Carpool & Multimodal"),
+            ("chat", "◐ Conversational Input"),
+        ]),
+        ("System", [
+            ("sumo", "△ SUMO Simulation"),
+            ("privacy", "◆ Privacy & System"),
+        ]),
+    ]
+    for label, items in nav_groups:
+        st.markdown(f"<div style='font-size:9.5px;color:#8A97A3;text-transform:uppercase;letter-spacing:.8px;margin-top:14px;'>{label}</div>", unsafe_allow_html=True)
+        for key, text in items:
+            if st.button(text, key=f"nav_{key}", use_container_width=True):
+                go(key)
+                st.rerun()
+
+# ============================================================
+# HELPERS
+# ============================================================
+def kpi_card(label, value, delta):
+    st.markdown(f"""
+    <div class="kpi"><div class="lbl">{label}</div><div class="val">{value}</div><div class="delta">{delta}</div></div>
+    """, unsafe_allow_html=True)
+
+def pill(text, sev):
+    return f'<span class="pill" style="background:{SEV_BG[sev]};color:{SEV_COLORS[sev]};">{text}</span>'
+
+def flow_diagram(steps, highlight_last=True):
+    html = ""
+    for i, s in enumerate(steps):
+        cls = "hi" if (highlight_last and i == len(steps) - 1) else ""
+        html += f'<div class="flow-step {cls}">{s}</div>'
+        if i < len(steps) - 1:
+            html += '<div class="flow-arrow">↓</div>'
+    st.markdown(f'<div style="max-width:440px;">{html}</div>', unsafe_allow_html=True)
+
+def bar_row(name, pct, color):
+    st.markdown(f"""
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+      <div class="barrow-name" style="width:150px;flex-shrink:0;">{name}</div>
+      <div style="flex:1;height:9px;background:#EAEFF3;border-radius:4px;overflow:hidden;border:1px solid {BORDER};">
+        <div style="height:100%;width:{pct}%;background:{color};border-radius:4px;"></div>
+      </div>
+      <div style="width:38px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:{MUTED};">{pct}%</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def make_map(center, zoom, markers=None, highlight_id=None, satellite=False):
+    m = folium.Map(location=center, zoom_start=zoom, tiles=None, control_scale=True)
+    if satellite:
+        folium.TileLayer(
+            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            attr="Esri, Maxar, Earthstar Geographics", name="Satellite",
+        ).add_to(m)
+    else:
+        folium.TileLayer(tiles="OpenStreetMap", attr="© OpenStreetMap contributors").add_to(m)
+    if markers:
+        for r in markers:
+            is_hi = r["id"] == highlight_id
+            folium.CircleMarker(
+                location=[r["lat"], r["lng"]],
+                radius=11 if is_hi else 8,
+                color="#fff", weight=2,
+                fill=True, fill_color=SEV_COLORS[r["sev"]], fill_opacity=0.95,
+                popup=f"<b>{r['id']}</b><br>{r['loc']}<br>{SEV_LABEL[r['sev']]} · {r['statusLabel']}",
+            ).add_to(m)
+    return m
+
+def sensor_chart(kind, color):
+    fig, ax = plt.subplots(figsize=(4.4, 1.5))
+    if kind == "accel":
+        y = [0, 0, 0, 0.05, -0.05, -3.6, 2.8, -1.0, 0, 0, 0]
+    else:
+        y = [0, 0, 0, 0, 0.6, -2.9, 1.4, -0.4, 0, 0, 0]
+    x = list(range(len(y)))
+    ax.plot(x, y, color=color, linewidth=2)
+    ax.axhline(0, color="#D7DEE6", linewidth=0.8)
+    ax.annotate("IMPACT", xy=(5, y[5]), xytext=(5.3, max(y) if max(y) > 0 else 1.2),
+                fontsize=8, color="#C62F1D", fontfamily="monospace")
+    ax.set_xticks([]); ax.set_yticks([])
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    fig.patch.set_alpha(0)
+    ax.set_facecolor("none")
+    st.pyplot(fig, use_container_width=True)
+    plt.close(fig)
+
+def gov_footer():
+    st.markdown(f"""
+    <div class="gov-footer">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+        <div><strong style="color:#fff;">Urban Administration &amp; Development Department</strong><br>Government of Madhya Pradesh</div>
+        <div>Bhopal Municipal Corporation<br>RTI · Grievance Redressal · Contact</div>
+        <div>Terms of Use<br>Website Policies · Accessibility Statement</div>
+      </div>
+      <div class="fine">
+        This page is a student capstone demonstration prototype. It is not an official Government of Madhya Pradesh or
+        Bhopal Municipal Corporation system, is not connected to any live municipal database, and all report data shown
+        is simulated. Visual style is inspired by common Government of India e-governance portal conventions and is not
+        affiliated with, or endorsed by, any government body.
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ============================================================
+# PAGES
+# ============================================================
+def page_command_center():
+    st.markdown('<h1 class="h">Municipal Road Intelligence Dashboard</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="lede">Monitor automatically detected road-surface issues, validate recurring road impacts, assess Road-Health, and prioritize maintenance across Bhopal Municipal Corporation wards.</p>', unsafe_allow_html=True)
+
+    cols = st.columns(5)
+    with cols[0]: kpi_card("Total Road Reports", "148", "+12 this week (sim)")
+    with cols[1]: kpi_card("Confirmed Issues", "37", "Multi-vehicle validated")
+    with cols[2]: kpi_card("High / Critical", "19", "Needs municipal action")
+    with cols[3]: kpi_card("Active Road Issues", "12", "Open, unresolved")
+    with cols[4]: kpi_card("Vehicles Contributing", "1,284", "Anonymous sensor feeds")
+
+    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown('<h2 class="sh">Road Condition &amp; Issue Map — Bhopal</h2>', unsafe_allow_html=True)
+    st.markdown('<p class="shsub">Live OpenStreetMap tiles, centred on real Bhopal coordinates. Report locations and severities are simulated demonstration data, not live sensor feeds.</p>', unsafe_allow_html=True)
+
+    map_col, legend_col = st.columns([3, 1])
+    with map_col:
+        m = make_map(BHOPAL_CENTER, 11, markers=REPORTS)
+        st_folium(m, use_container_width=True, height=420, returned_objects=[])
+    with legend_col:
+        st.markdown("<div style='padding-top:8px;'>", unsafe_allow_html=True)
+        for sev, label in [("crit", "Critical — Immediate attention"), ("high", "High — Maintenance priority"),
+                            ("med", "Medium — Monitor / inspect"), ("low", "Low — Low priority"),
+                            ("review", "Under review — Awaiting validation")]:
+            st.markdown(f"""<div style="display:flex;align-items:center;gap:9px;font-size:12.3px;color:{MUTED};margin-bottom:9px;">
+            <span style="width:11px;height:11px;border-radius:50%;background:{SEV_COLORS[sev]};display:inline-block;border:2px solid #fff;box-shadow:0 0 0 1px {BORDER};"></span>{label}</div>""", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def page_reports():
+    st.markdown('<h1 class="h">Road Issue Reports</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="lede">All automatically detected reports across Bhopal, ranked by validation confidence and severity.</p>', unsafe_allow_html=True)
+
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    hdr = st.columns([1.4, 1.8, 0.9, 0.9, 1, 0.9, 0.9])
+    for c, t in zip(hdr, ["Report ID", "Location", "Ward", "Severity", "Status", "Detections", ""]):
+        c.markdown(f"<div style='font-size:10.5px;color:{MUTED};font-weight:700;text-transform:uppercase;'>{t}</div>", unsafe_allow_html=True)
+    st.markdown(f"<hr style='margin:6px 0;border-color:{BORDER};'>", unsafe_allow_html=True)
+
+    for r in REPORTS:
+        c = st.columns([1.4, 1.8, 0.9, 0.9, 1, 0.9, 0.9])
+        c[0].markdown(f"<span style='font-family:IBM Plex Mono,monospace;font-size:12.5px;'>{r['id']}</span>", unsafe_allow_html=True)
+        c[1].markdown(r["loc"])
+        c[2].markdown(r["ward"])
+        c[3].markdown(pill(SEV_LABEL[r["sev"]], r["sev"]), unsafe_allow_html=True)
+        c[4].markdown(pill(r["statusLabel"], "low" if r["status"] == "ok" else "review"), unsafe_allow_html=True)
+        c[5].markdown(f"<span style='font-family:IBM Plex Mono,monospace;'>{r['det']}</span>", unsafe_allow_html=True)
+        if c[6].button("View →", key=f"view_{r['id']}"):
+            go("report_detail", r["id"])
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def page_report_detail():
+    r = REPORTS_BY_ID[st.session_state.selected_report]
+    st.markdown('<h1 class="h">Road Issue Report</h1>', unsafe_allow_html=True)
+    st.markdown(f'<p class="lede">{r["loc"]} · {SEV_LABEL[r["sev"]]} priority</p>', unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown('<div class="panel">', unsafe_allow_html=True)
+        st.markdown('<h2 class="sh">Report Information</h2>', unsafe_allow_html=True)
+        for k, v in [("Report ID", r["id"]), ("Issue Type", "Road Surface Anomaly"),
+                     ("Detection Source", "Smartphone Motion Sensors"), ("Detection Time", r["time"])]:
+            st.markdown(f'<div class="kv-row"><div class="kv-k">{k}</div><div class="kv-v">{v}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="kv-row"><div class="kv-k">Validation Status</div><div class="kv-v">{pill(("✓ " if r["status"]=="ok" else "")+r["statusLabel"], "low" if r["status"]=="ok" else "review")}</div></div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div class="panel">', unsafe_allow_html=True)
+        st.markdown('<h2 class="sh">📍 Location Information</h2>', unsafe_allow_html=True)
+        for k, v in [("Address", r["loc"]), ("Ward", r["ward"]),
+                     ("Latitude", f'{r["lat"]:.6f}°'), ("Longitude", f'{r["lng"]:.6f}°'),
+                     ("Road Segment", r["seg"])]:
+            st.markdown(f'<div class="kv-row"><div class="kv-k">{k}</div><div class="kv-v">{v}</div></div>', unsafe_allow_html=True)
+        st.markdown('<p class="footnote">GPS-tagged location · real Bhopal coordinates · human-readable address derived for display in this prototype.</p>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    m = make_map([r["lat"], r["lng"]], 15, markers=REPORTS, highlight_id=r["id"])
+    st_folium(m, use_container_width=True, height=340, returned_objects=[])
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if st.button("← Back to reports"):
+        go("reports")
+        st.rerun()
+
+
+def page_evidence():
+    r = REPORTS_BY_ID[st.session_state.selected_report]
+    st.markdown('<h1 class="h">Road Condition Evidence</h1>', unsafe_allow_html=True)
+    st.markdown(f'<p class="lede">Simulated visual evidence attached to report <span style="font-family:IBM Plex Mono,monospace;">{r["id"]}</span>.</p>', unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown('<div class="panel">', unsafe_allow_html=True)
+        st.markdown('<h2 class="sh">Road / Pothole Evidence</h2>', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="height:260px;border-radius:2px;border:1px solid {BORDER};position:relative;overflow:hidden;
+        background:linear-gradient(rgba(20,25,30,.25),rgba(20,25,30,.45)),
+        repeating-linear-gradient(100deg,#75797c 0 42px,#6b6f72 42px 84px);">
+          <div style="position:absolute;width:70px;height:40px;top:90px;left:120px;border-radius:50% 40% 60% 30%;
+          border:2px solid #232527;transform:rotate(12deg);"></div>
+          <div style="position:absolute;bottom:8px;left:8px;font-family:IBM Plex Mono,monospace;font-size:10px;
+          background:rgba(20,25,30,.65);padding:3px 7px;border-radius:2px;color:#EAEDEF;">frame_{r['id'][-4:]}.jpg · simulated capture</div>
+        </div>""", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div class="panel">', unsafe_allow_html=True)
+        st.markdown('<h2 class="sh">Satellite View — Real Location</h2>', unsafe_allow_html=True)
+        m = make_map([r["lat"], r["lng"]], 16, satellite=True)
+        folium.CircleMarker(location=[r["lat"], r["lng"]], radius=9, color="#fff", weight=2,
+                             fill=True, fill_color=SAFFRON, fill_opacity=0.95).add_to(m)
+        st_folium(m, use_container_width=True, height=260, returned_objects=[])
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<p class="footnote">Pothole detection itself comes from smartphone motion sensors, not satellite image analysis — this panel shows real satellite basemap imagery purely as a location reference.</p>', unsafe_allow_html=True)
+
+
+def page_sensors():
+    st.markdown('<h1 class="h">Sensor-Based Detection Analysis</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="lede">Raw motion signatures behind report <span style="font-family:IBM Plex Mono,monospace;">PTH-2026-00841</span> — Hoshangabad Road, Misrod stretch.</p>', unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown('<div class="panel"><h2 class="sh">Accelerometer</h2>', unsafe_allow_html=True)
+        sensor_chart("accel", NAVY)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div class="panel"><h2 class="sh">Gyroscope</h2>', unsafe_allow_html=True)
+        sensor_chart("gyro", "#1E5FA8")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown('<h2 class="sh">Detected Event</h2>', unsafe_allow_html=True)
+    c = st.columns(3)
+    for col, label in zip(c, ["Impact detected", "GPS captured", "Motion anomaly confirmed"]):
+        col.markdown(f"<div style='color:#1E7A44;font-size:13px;'>✓ {label}</div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown('<h2 class="sh">🚗 Multi-Vehicle Validation</h2>', unsafe_allow_html=True)
+    st.markdown('<p class="shsub">Independent vehicles are cross-checked before an anomaly becomes a confirmed report — no single reading is trusted alone.</p>', unsafe_allow_html=True)
+    df = pd.DataFrame([
+        ["V102", "11:58:11", 7.2, "✓", "Matched"],
+        ["V118", "12:03:42", 6.8, "✓", "Matched"],
+        ["V143", "12:11:05", 8.1, "✓", "Matched"],
+        ["V201", "12:17:27", 7.5, "✓", "Matched"],
+        ["V244", "12:25:08", 6.9, "✓", "Matched"],
+    ], columns=["Vehicle", "Time", "Impact (g)", "GPS Match", "Status"])
+    st.dataframe(df, hide_index=True, use_container_width=True)
+    st.markdown("5 independent vehicles detected similar impacts at the same road segment.")
+    st.markdown(pill("🟢 HIGH CONFIDENCE ROAD ISSUE", "low"), unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def page_roadhealth():
+    st.markdown('<h1 class="h">Road-Health Index</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="lede">Composite score per road segment, combining detection signals with simulated environmental context.</p>', unsafe_allow_html=True)
+
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown(f'<h2 class="sh">Hoshangabad Road — Misrod Stretch {pill("CRITICAL","crit")}</h2>', unsafe_allow_html=True)
+    c1, c2 = st.columns([1, 3])
+    with c1:
+        st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:40px;font-weight:700;color:{SEV_COLORS["crit"]};">34<span style="font-size:16px;color:#8A97A3;">/100</span></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown(f'<div style="color:{MUTED};font-size:12px;padding-top:14px;">Road-Health score — lower is worse.<br>Feeds directly into traffic capacity modeling.</div>', unsafe_allow_html=True)
+
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    bar_row("Pothole Density", 82, SEV_COLORS["crit"])
+    bar_row("Detection Recency", 76, SEV_COLORS["high"])
+    bar_row("Traffic Exposure", 91, SEV_COLORS["crit"])
+    bar_row("Weather Impact (sim)", 32, SEV_COLORS["med"])
+    bar_row("Incident Impact (sim)", 21, SEV_COLORS["low"])
+
+    st.markdown(f"<hr style='border-color:{BORDER};'>", unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("<div style='font-size:10.5px;color:#8A97A3;text-transform:uppercase;'>Estimated Road Capacity Reduction</div>", unsafe_allow_html=True)
+        st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:22px;color:{SEV_COLORS["high"]};">−28%</div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"""<div style="background:#F7FAFC;border:1px solid {BORDER};border-radius:2px;padding:12px 14px;">
+        <strong style="font-size:12.5px;">CityFlow Impact</strong>
+        <p style="margin:6px 0 0;color:{MUTED};font-size:12.5px;">This road segment will be treated as having reduced effective capacity during traffic optimization.</p>
+        </div>""", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def page_priority():
+    st.markdown('<h1 class="h">Maintenance Priority Center</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="lede">Segments ranked for municipal action using Road-Health, detection volume, and traffic exposure.</p>', unsafe_allow_html=True)
+
+    items = [
+        ("crit", "CRITICAL", "Hoshangabad Road — Misrod Stretch", "Road Health 34/100 · Detections 340 · Traffic Exposure 91/100", "Immediate Inspection →", True),
+        ("high", "HIGH", "MP Nagar Zone II", "Road Health 47/100 · Detections 190 · Traffic Exposure 74/100", "Maintenance Assignment →", False),
+        ("med", "MEDIUM", "Govindpura Main Road", "Road Health 67/100 · Detections 84 · Traffic Exposure 58/100", "Monitor / Schedule Inspection →", False),
+    ]
+    for sev, label, title, sub, btn_label, primary in items:
+        st.markdown('<div class="panel">', unsafe_allow_html=True)
+        c1, c2 = st.columns([4, 1.4])
+        with c1:
+            st.markdown(pill(label, sev), unsafe_allow_html=True)
+            st.markdown(f'<h2 class="sh" style="margin-top:8px;">{title}</h2>', unsafe_allow_html=True)
+            st.markdown(f'<p class="shsub" style="margin-bottom:0;">{sub}</p>', unsafe_allow_html=True)
+        with c2:
+            if st.button(btn_label, key=f"pri_{title}"):
+                go("action")
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
+def page_action():
+    st.markdown('<h1 class="h">Recommended Municipal Action</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="lede">Report <span style="font-family:IBM Plex Mono,monospace;">PTH-2026-00841</span> · Hoshangabad Road, Misrod Stretch</p>', unsafe_allow_html=True)
+
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown(f'<div class="kv-row"><div class="kv-k">Issue</div><div class="kv-v" style="font-family:inherit;">Confirmed Road-Surface Anomaly</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="kv-row"><div class="kv-k">Priority</div><div class="kv-v">{pill("CRITICAL","crit")}</div></div>', unsafe_allow_html=True)
+    st.markdown(f"<hr style='border-color:{BORDER};'>", unsafe_allow_html=True)
+    st.markdown("<div class='kv-k'>Recommended Action</div>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size:14px;'>Immediate Road Inspection</p>", unsafe_allow_html=True)
+    st.markdown("<div class='kv-k'>Reason</div>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color:{MUTED};'>High number of repeated impact detections combined with low Road-Health and high traffic exposure.</p>", unsafe_allow_html=True)
+
+    c = st.columns(4)
+    labels = ["Assign Inspection", "Assign Maintenance Crew", "Mark Verified", "Mark Fixed"]
+    for col, lbl in zip(c, labels):
+        if col.button(lbl, key=f"act_{lbl}"):
+            st.toast(f"✓ {lbl} recorded")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def page_impact():
+    st.markdown('<h1 class="h">CityFlow AI Traffic Impact</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="lede">Road condition doesn\'t stay siloed in the maintenance queue — it enters the traffic-forecasting engine directly.</p>', unsafe_allow_html=True)
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    flow_diagram([
+        "Road issue detected", "Road-Health = 34/100", "Effective capacity ↓ 28%",
+        "Traffic demand forecast", "Peak window identified", "Departure-time optimizer",
+        "Staggered departure", "Reduced peak overload",
+    ])
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<p class="footnote">The core idea: demand forecasting, departure-time optimization, road condition, and explainable recommendations all run in one pipeline — not as separate features.</p>', unsafe_allow_html=True)
+
+
+def page_demand():
+    st.markdown('<h1 class="h">Predicted Traffic Demand</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="lede">Forecast for the Misrod / Hoshangabad Road corridor, 15-minute buckets.</p>', unsafe_allow_html=True)
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+
+    times = ["8:45", "9:00", "9:15", "9:30", "9:45"]
+    values = [430, 920, 670, 480, 350]
+    colors = ["#1E7A44", "#C62F1D", "#B4690E", "#1E7A44", "#1E7A44"]
+    fig, ax = plt.subplots(figsize=(7, 3))
+    bars = ax.bar(times, values, color=colors, width=0.55)
+    for b, v in zip(bars, values):
+        ax.text(b.get_x() + b.get_width()/2, v + 15, str(v), ha="center", fontsize=10, fontfamily="monospace")
+    ax.set_ylim(0, 1050)
+    ax.set_yticks([])
+    for spine in ["top", "right", "left"]:
+        ax.spines[spine].set_visible(False)
+    fig.patch.set_alpha(0)
+    ax.set_facecolor("none")
+    st.pyplot(fig, use_container_width=True)
+    plt.close(fig)
+
+    st.markdown(f"<hr style='border-color:{BORDER};'>", unsafe_allow_html=True)
+    st.markdown(f'Peak congestion window detected: <strong style="font-family:IBM Plex Mono,monospace;color:{SEV_COLORS["crit"]};">8:55 – 9:15 AM</strong>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def page_departure():
+    st.markdown('<h1 class="h">Departure Optimizer</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="lede">Personalized departure-time recommendation for a commuter on the Misrod / Hoshangabad Road corridor.</p>', unsafe_allow_html=True)
+
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("<div class='kv-k'>Usual departure</div>", unsafe_allow_html=True)
+        st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:20px;color:{MUTED};text-decoration:line-through;">9:00 AM</div>', unsafe_allow_html=True)
+        st.markdown("<div class='kv-k' style='margin-top:14px;'>Recommended departure</div>", unsafe_allow_html=True)
+        st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:26px;color:{SEV_COLORS["low"]};">🟢 8:45 AM</div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown("<strong style='font-size:12.5px;'>Why?</strong>", unsafe_allow_html=True)
+        st.markdown(f'<p style="color:{MUTED};">Leaving at 8:45 AM reduces exposure to the predicted 9:00 AM demand peak and avoids the reduced-capacity road segment on Hoshangabad Road.</p>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown('<div class="panel"><h2 class="sh">Normal</h2>', unsafe_allow_html=True)
+        st.markdown("<div>8:45&nbsp;&nbsp;🚗🚗🚗</div><div>9:00&nbsp;&nbsp;🚗🚗🚗🚗🚗🚗🚗🚗🚗</div><div>9:15&nbsp;&nbsp;🚗🚗🚗🚗</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div class="panel"><h2 class="sh">CityFlow AI</h2>', unsafe_allow_html=True)
+        st.markdown("<div>8:45&nbsp;&nbsp;🚗🚗🚗🚗🚗</div><div>9:00&nbsp;&nbsp;🚗🚗🚗🚗🚗</div><div>9:15&nbsp;&nbsp;🚗🚗🚗🚗</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<p class="footnote">Same total trips, spread across a wider time band instead of one short demand spike.</p>', unsafe_allow_html=True)
+
+
+def page_support():
+    st.markdown('<h1 class="h">Carpool &amp; Multimodal Support</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="lede">Supporting features — secondary to the core demand/road-health optimization loop.</p>', unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown('<div class="panel"><h2 class="sh">🚗 Carpool Matching</h2>', unsafe_allow_html=True)
+        st.markdown(f'<p><strong style="font-family:IBM Plex Mono,monospace;color:{NAVY};">3</strong> compatible commuters found</p>', unsafe_allow_html=True)
+        for t in ["Similar origin", "Similar destination", "Compatible departure window"]:
+            st.markdown(f"<div style='color:#1E7A44;'>✓ {t}</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div class="panel"><h2 class="sh">🚌 Multi-Modal Suggestions</h2>', unsafe_allow_html=True)
+        st.markdown('<p class="shsub">Recommended alternatives for this route today.</p>', unsafe_allow_html=True)
+        st.markdown(pill("🚇 Metro", "review") + " " + pill("🚌 Bus", "review") + " " + pill("🚲 Cycling", "review"), unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
+def page_chat():
+    st.markdown('<h1 class="h">Conversational Input</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="lede">Tell CityFlow your constraint in plain language — powered by a lightweight LLM API call in the prototype.</p>', unsafe_allow_html=True)
+
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    for role, text in st.session_state.chat_log:
+        if role == "user":
+            st.markdown(f'<div style="background:{NAVY};color:#fff;padding:9px 13px;border-radius:8px 8px 2px 8px;font-size:12.5px;margin:6px 0;max-width:75%;margin-left:auto;">{text}</div>', unsafe_allow_html=True)
+        else:
+            parsed = text.replace("\n", "<br>")
+            st.markdown(f'<div style="background:#fff;border:1px solid {BORDER};padding:9px 13px;border-radius:8px 8px 8px 2px;font-size:12.5px;margin:6px 0;max-width:75%;">Constraint understood:<div style="font-family:IBM Plex Mono,monospace;color:{NAVY};margin-top:4px;">{parsed}</div></div>', unsafe_allow_html=True)
+
+    user_input = st.chat_input("Type a constraint, e.g. 'leave 10 min earlier'")
+    if user_input:
+        st.session_state.chat_log.append(("user", user_input))
+        match = re.search(r"(\d+)\s*min", user_input, re.IGNORECASE)
+        minutes = match.group(1) if match else "10"
+        st.session_state.chat_log.append(("sys", f"Departure flexibility = −{minutes} minutes\nRecommendation recalculated"))
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def page_sumo():
+    st.markdown('<h1 class="h">Traffic Simulation &amp; Evaluation</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="lede">Evaluation environment: <span style="font-family:IBM Plex Mono,monospace;">SUMO + OpenStreetMap</span> — a simulated urban network, not a live city feed.</p>', unsafe_allow_html=True)
+
+    df = pd.DataFrame([
+        ["Peak Demand", "920", "680"],
+        ["Avg Travel Time", "58 min", "42 min"],
+        ["Peak Congestion", "92", "64"],
+        ["Delay", "46 min", "27 min"],
+    ], columns=["Metric", "Baseline", "CityFlow AI"])
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.dataframe(df, hide_index=True, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(f'<div class="panel"><strong style="font-size:12.5px;">Baseline</strong><p style="margin:6px 0 0;color:{MUTED};">Normal departure behaviour, no road-condition signal.</p></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown(f'<div class="panel"><strong style="font-size:12.5px;">CityFlow AI</strong><p style="margin:6px 0 0;color:{MUTED};">Staggered departure schedule informed by the road-condition signal.</p></div>', unsafe_allow_html=True)
+
+
+def page_privacy():
+    st.markdown('<h1 class="h">Privacy &amp; Data Protection</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="lede">Design principles for the prototype\'s data handling.</p>', unsafe_allow_html=True)
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    for t in ["Anonymous / privacy-preserving user handling", "Aggregated mobility patterns",
+              "k-Anonymity-style data bucketing", "Minimal personal data exposure",
+              "Road reports separated from personally identifiable commuter information"]:
+        st.markdown(f"<div style='padding:9px 0;border-bottom:1px solid {BORDER};color:#1E7A44;'>✓ <span style='color:{TEXT};'>{t}</span></div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ============================================================
+# DISPATCH
+# ============================================================
+PAGES = {
+    "command_center": page_command_center,
+    "reports": page_reports,
+    "report_detail": page_report_detail,
+    "evidence": page_evidence,
+    "sensors": page_sensors,
+    "roadhealth": page_roadhealth,
+    "priority": page_priority,
+    "action": page_action,
+    "impact": page_impact,
+    "demand": page_demand,
+    "departure": page_departure,
+    "support": page_support,
+    "chat": page_chat,
+    "sumo": page_sumo,
+    "privacy": page_privacy,
+}
+PAGES[st.session_state.page]()
+gov_footer()
