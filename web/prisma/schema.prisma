@@ -1,0 +1,67 @@
+// =============================================================================
+// CityFlow AI — database schema (Prisma + PostgreSQL / Neon)
+// =============================================================================
+// PHASE 1 scope: only what authentication and the anonymous CityFlow ID need.
+// Later phases add: TravelProfile, TravelIntention, DemandSlot, Recommendation,
+// RoadImpactReport, AdminUser — each as its own model in this same file.
+//
+// After changing anything here, run:   npm run db:push
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A registered commuter of the CityFlow AI user portal.
+///
+/// PRIVACY NOTE
+/// The email address exists only for authentication, account recovery and
+/// important service communication. Everywhere else in the system — analytics,
+/// aggregated demand, the Admin Portal — a user is referenced by `cityflowId`,
+/// never by email or name.
+model User {
+  /// Internal primary key. Never shown in the UI.
+  id String @id @default(cuid())
+
+  /// Login identity. Stored lower-cased so "A@b.com" and "a@b.com" are one account.
+  email String @unique
+
+  /// bcrypt hash of the password. The plain password is never stored anywhere.
+  passwordHash String
+
+  /// Optional display name / nickname used only to greet the user.
+  displayName String?
+
+  /// Anonymous public identifier, e.g. "CF-8X42K91".
+  /// This is the ID used to link travel preferences and recommendations
+  /// without exposing who the person is.
+  cityflowId String @unique
+
+  /// Which city the user is currently viewing (e.g. "delhi"). Optional so a
+  /// user can sign up before choosing a city.
+  cityCode String?
+
+  /// Set to true once the Phase 2 travel-routine onboarding is finished.
+  onboardingCompleted Boolean @default(false)
+
+  /// Role separation. Commuters are "USER"; the Admin Portal (Phase 4) uses "ADMIN".
+  role UserRole @default(USER)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cityCode])
+  @@map("users")
+}
+
+/// Role separation between the User Portal and the Admin Portal.
+/// The Municipal Dashboard is a separate existing system and is NOT a role here.
+enum UserRole {
+  USER
+  ADMIN
+}

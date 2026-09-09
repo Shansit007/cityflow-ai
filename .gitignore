@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+
+# Environment files — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Python (used later for the AI / SUMO services)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Build output
+.next/
+out/
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
