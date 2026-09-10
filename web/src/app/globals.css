@@ -366,3 +366,58 @@ body {
 .leaflet-control-attribution a {
   color: var(--cf-primary) !important;
 }
+
+/* --------------------------------------------------------------------------
+   7. DEMAND HEATMAP RAMP (Admin Portal)
+   --------------------------------------------------------------------------
+   Demand in the heatmap is ORDERED MAGNITUDE, not a status, so it uses a
+   sequential single-hue ramp rather than the green/amber/red status palette.
+
+   Why: a four-hue status ramp fails colour-vision separation badly at the
+   red end — "High" and "Very high" sit at a colour distance most people
+   cannot resolve, let alone someone with deuteranopia. A single hue stepped
+   by LIGHTNESS survives every form of colour blindness, because lightness is
+   what all of them preserve.
+
+   Both ramps below are monotonic in luminance, and each step ships with an
+   ink colour that clears 4.5:1 against it. Cells also print their number, and
+   over-capacity cells carry an explicit marker — so the colour is never
+   carrying the meaning alone.
+
+   The green/amber/red status palette is still used where it belongs: badges
+   and traffic status, where every value has a text label beside it.
+   -------------------------------------------------------------------------- */
+
+:root {
+  /* light -> dark as demand rises */
+  --cf-demand-1: #eef2f8;
+  --cf-demand-2: #d3ddec;
+  --cf-demand-3: #a9bcd9;
+  --cf-demand-4: #7b96c4;
+  --cf-demand-5: #4a6ba6;
+  --cf-demand-6: #14396f;
+
+  --cf-demand-1-ink: #0f1a2b;
+  --cf-demand-2-ink: #0f1a2b;
+  --cf-demand-3-ink: #0f1a2b;
+  --cf-demand-4-ink: #0f1a2b;
+  --cf-demand-5-ink: #ffffff;
+  --cf-demand-6-ink: #ffffff;
+}
+
+.dark {
+  /* dark -> light as demand rises, so a busy cell still reads as "more" */
+  --cf-demand-1: #18233a;
+  --cf-demand-2: #22355a;
+  --cf-demand-3: #2f4b7d;
+  --cf-demand-4: #4468a4;
+  --cf-demand-5: #6d92cc;
+  --cf-demand-6: #a3c0ef;
+
+  --cf-demand-1-ink: #e9eef7;
+  --cf-demand-2-ink: #e9eef7;
+  --cf-demand-3-ink: #e9eef7;
+  --cf-demand-4-ink: #e9eef7;
+  --cf-demand-5-ink: #0b1220;
+  --cf-demand-6-ink: #0b1220;
+}

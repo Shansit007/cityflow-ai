@@ -31,6 +31,16 @@ const PROTECTED_PREFIXES = [
 /** Pages that a signed-in user should not see again (they would be confusing). */
 const AUTH_ONLY_PREFIXES = ["/login", "/signup"];
 
+/**
+ * The Admin Portal. Separate from the commuter portal in every sense: its own
+ * route prefix, its own layout, and its own role.
+ *
+ * This is the fast edge check, using the role inside the signed cookie. Every
+ * admin page and API route ALSO re-checks the role against the database — see
+ * lib/auth/admin.ts for why both exist.
+ */
+const ADMIN_PREFIXES = ["/admin"];
+
 function startsWithAny(pathname: string, prefixes: string[]): boolean {
   return prefixes.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)

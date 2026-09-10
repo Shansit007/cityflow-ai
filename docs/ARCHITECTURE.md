@@ -1,6 +1,6 @@
 # CityFlow AI — Architecture
 
-> Status: **Phases 1, 2 and 3 complete.** Phases 4–5 are planned and the folder structure
+> Status: **Phases 1–4 complete.** Phase 5 is planned and the folder structure
 > already anticipates them, but their code does not exist yet. Anything marked
 > *(planned)* is not implemented.
 
@@ -13,7 +13,7 @@ CityFlow AI has three separate parts. They are deliberately **not** merged.
 | Portal | Who uses it | Where it lives |
 |---|---|---|
 | **User / Commuter Portal** | Citizens | This repository, routes `/`, `/dashboard`, `/profile` |
-| **Admin Portal** | The CityFlow AI project team today; possibly a government authority in future | This repository, routes under `/admin` *(planned, Phase 4)* |
+| **Admin Portal** | The CityFlow AI project team today; possibly a government authority in future | This repository, routes under `/admin` |
 | **Municipal Dashboard** | Municipal road-maintenance staff | **A separate, already-existing system.** Not built here. |
 
 ### What the Municipal Dashboard may and may not do
@@ -58,6 +58,7 @@ cityflow-ai/
         │   ├── auth/         Sign-up / log-in forms, CityFlow ID card
         │   ├── brand/        Logo
         │   ├── city/         City context, selector, skyline artwork, backdrop
+        │   ├── admin/        Admin Portal chrome, panels, heatmap, simulation form
         │   ├── chat/         The assistant panel and its confirmation card
         │   ├── dashboard/    Recommendation card, peak strip, status cards, history
         │   ├── landing/      Landing-page sections
@@ -68,7 +69,8 @@ cityflow-ai/
         │   ├── theme/        Light/dark theme provider and toggle
         │   └── ui/           Reusable primitives (Button, Card, Badge, TextField…)
         ├── lib/
-        │   ├── auth/         Password hashing, JWT, session, CityFlow ID generation
+        │   ├── admin/        Aggregated analytics + SUMO demand export
+        │   ├── auth/         Password hashing, JWT, session, CityFlow ID generation, admin guard
         │   ├── chat/         Time parsing, intent recognition, assistant replies
         │   ├── demand/       Time slots, baseline model, aggregation, engine, optimiser, zones
         │   ├── app-time.ts   "Today" and "now" in the application timezone (IST)
@@ -193,6 +195,55 @@ scale. In a real deployment this belongs on a queue.
 
 ---
 
+## 4d. The Admin Portal's privacy boundary
+
+The boundary is **structural, not procedural**. Every function in
+`lib/admin/analytics.ts` returns counts and averages; none of them selects a
+user id, a CityFlow ID, an email or a home area. The portal cannot display an
+individual, rather than merely choosing not to.
+
+Two further rules hold everywhere in the portal and in every CSV export:
+
+- A person who switched off *"count my trip in city-level demand totals"* during
+  onboarding is excluded from every figure. `shareAggregatedDemand: true`
+  appears in each query for that reason.
+- Zone demand is built from real registered routines — a confirmed plan where
+  one exists, otherwise that person's usual departure on a day they said they
+  travel. Nothing is invented, and the UI states which is which.
+
+**Access control has two layers.** `proxy.ts` blocks `/admin` at the edge using
+the role in the signed cookie; `lib/auth/admin.ts` re-checks against the
+database inside every page and API route. The second is not redundant: a cookie
+is a snapshot, and rights can be revoked after it was issued. The consequence in
+the other direction is that a newly promoted admin must sign in again.
+
+---
+
+## 4e. Simulation evaluation (SUMO + OpenStreetMap)
+
+The application produces demand files and stores results. **It does not run
+SUMO** — SUMO is a desktop simulator, and a web app claiming to have run one
+would be fabricating the project's key evidence.
+
+```
+Admin Portal  ──exports──▶  baseline.trips.xml   (everyone at their usual time)
+                            cityflow.trips.xml   (everyone at the recommended time)
+                            tazs.add.xml         (zone template, edges left blank)
+                                   │
+                     netconvert / duarouter / sumo   ← on a workstation
+                                   │
+Admin Portal  ◀──recorded──  metrics typed back in, compared side by side
+```
+
+Same travellers, same origins and destinations, same trip count. **The only
+difference between the two files is departure time**, which is what makes any
+difference in the results attributable to demand smoothing.
+
+Full pipeline, including where each metric comes from in SUMO's output:
+[docs/04-SUMO-EVALUATION.md](04-SUMO-EVALUATION.md).
+
+---
+
 ## 5. Privacy model
 
 - `users.email` exists for authentication, recovery and service messages **only**.
@@ -209,7 +260,7 @@ scale. In a real deployment this belongs on a queue.
 |---|---|
 | **2** | Travel-routine onboarding, real commuter dashboard, Leaflet map, profile editing. New tables: `TravelProfile`, `Recommendation` |
 | **3** | ✅ Built: assistant, intent recognition, confirmation flow, `TravelIntention`, `DemandSlotAggregate`, `NetworkEvent`, city-wide re-optimisation |
-| **4** | Admin Portal (separate auth + `/admin` routes), demand heatmap, reports, system health, SUMO + OpenStreetMap simulation structure, baseline vs CityFlow AI comparison |
+| **4** | ✅ Built: Admin Portal at `/admin` with its own chrome and role guard, city overview, zone × slot heatmap, CSV reports, system status, SUMO/OSM demand export and baseline vs CityFlow comparison |
 | **5** | Smartphone road-impact detection, citizen road-issue reporting, hand-off to the existing Municipal Dashboard, participation/rewards, final accessibility and security pass |
 
 ---

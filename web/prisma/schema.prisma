@@ -433,3 +433,64 @@ enum ChatRole {
   USER
   ASSISTANT
 }
+
+// =============================================================================
+// PHASE 4 — simulation evaluation (SUMO + OpenStreetMap)
+// =============================================================================
+
+/// One SUMO simulation run and the metrics it produced.
+///
+/// WHAT THIS IS AND IS NOT
+/// CityFlow AI does not run SUMO inside the web application — SUMO is a desktop
+/// simulator, and pretending to run it from a serverless function would be a
+/// lie. What the application does is:
+///
+///   1. export the demand it holds as a SUMO-readable origin/destination file;
+///   2. store the metrics that come back from a run;
+///   3. compare a BASELINE run against a CITYFLOW run, honestly.
+///
+/// Every row here is entered from a real run — either pasted in by the team or
+/// posted by a script after `sumo` finishes. Nothing is generated.
+model SimulationRun {
+  id String @id @default(cuid())
+
+  cityCode String
+
+  /// The demand date this run was built from.
+  travelDate DateTime @db.Date
+
+  scenario SimulationScenario
+
+  /// Where the road network came from, e.g. "OpenStreetMap extract 2026-09-01".
+  networkSource String
+
+  /// How many vehicles the run started with.
+  vehiclesDeparted Int
+
+  /// Mean travel time per vehicle, in seconds.
+  meanTravelTimeSeconds Int
+
+  /// Total time lost to congestion across all vehicles, in seconds.
+  totalDelaySeconds Int
+
+  /// The busiest 15-minute slot's vehicle count, i.e. the peak this run produced.
+  peakSlotVehicles Int
+
+  /// Mean waiting time per vehicle, in seconds.
+  meanWaitingSeconds Int
+
+  /// Anything worth recording about how the run was configured.
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  @@index([cityCode, travelDate, scenario])
+  @@map("simulation_runs")
+}
+
+enum SimulationScenario {
+  /// Everyone departs at their normal time — the "no CityFlow AI" case.
+  BASELINE
+  /// Departures follow CityFlow AI's recommendations.
+  CITYFLOW
+}

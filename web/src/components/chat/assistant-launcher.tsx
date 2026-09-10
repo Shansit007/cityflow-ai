@@ -17,7 +17,7 @@ import { ASSISTANT_NAME } from "@/lib/chat/branding";
  * sit on top of the form).
  */
 
-const HIDDEN_ON = ["/assistant", "/onboarding"];
+const HIDDEN_ON = ["/assistant", "/onboarding", "/admin"];
 
 export function AssistantLauncher() {
   const pathname = usePathname();

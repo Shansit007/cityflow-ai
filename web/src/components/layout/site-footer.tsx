@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { Logo } from "@/components/brand/logo";
 import { Container } from "@/components/ui/container";
@@ -31,6 +34,25 @@ const FOOTER_SECTIONS = [
 ];
 
 export function SiteFooter() {
+  const pathname = usePathname();
+
+  // The Admin Portal is a working tool, not a public page: it does not need
+  // the marketing link columns. It keeps the honesty notice, which applies
+  // everywhere.
+  if (pathname.startsWith("/admin")) {
+    return (
+      <footer className="mt-16 border-t border-border-base bg-surface">
+        <Container width="wide">
+          <p className="py-6 text-xs leading-relaxed text-subtle">
+            CityFlow AI Admin Portal · figures on these pages are aggregated counts and model
+            predictions, not measured traffic. An academic capstone project; not an official
+            government service.
+          </p>
+        </Container>
+      </footer>
+    );
+  }
+
   return (
     <footer className="mt-24 border-t border-border-base bg-surface">
       <Container width="wide">

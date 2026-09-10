@@ -214,3 +214,32 @@ export const intentConfirmSchema = z
 
 export type ChatMessageInput = z.infer<typeof chatMessageSchema>;
 export type IntentConfirmInput = z.infer<typeof intentConfirmSchema>;
+
+/* ==========================================================================
+   PHASE 4 — Admin Portal: recording a SUMO simulation result
+   ========================================================================== */
+
+/**
+ * Metrics from one completed SUMO run.
+ *
+ * These are TYPED IN by the team after a run finishes — CityFlow AI does not
+ * run SUMO and does not generate these numbers. The schema exists to stop a
+ * typo becoming a result nobody can explain later.
+ */
+export const simulationRunSchema = z.object({
+  cityCode: z.string().trim().min(2).max(40),
+  scenario: z.enum(["BASELINE", "CITYFLOW"]),
+  networkSource: z
+    .string()
+    .trim()
+    .min(3, "Say where the road network came from, e.g. an OpenStreetMap extract date")
+    .max(160),
+  vehiclesDeparted: z.number().int().min(0).max(10_000_000),
+  meanTravelTimeSeconds: z.number().int().min(0).max(86_400),
+  totalDelaySeconds: z.number().int().min(0).max(1_000_000_000),
+  peakSlotVehicles: z.number().int().min(0).max(10_000_000),
+  meanWaitingSeconds: z.number().int().min(0).max(86_400),
+  notes: z.string().trim().max(600).optional().or(z.literal("")),
+});
+
+export type SimulationRunInput = z.infer<typeof simulationRunSchema>;

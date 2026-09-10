@@ -2,7 +2,7 @@
   "name": "cityflow-ai-web",
   "version": "0.1.0",
   "private": true,
-  "description": "CityFlow AI — Smarter Departures, Smoother Journeys. Web application (user portal + admin portal).",
+  "description": "CityFlow AI \u2014 Smarter Departures, Smoother Journeys. Web application (user portal + admin portal).",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "admin:create": "node --env-file=.env scripts/make-admin.mjs"
   },
   "dependencies": {
     "@prisma/client": "6.3.0",

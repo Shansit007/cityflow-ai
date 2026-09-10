@@ -49,7 +49,7 @@ CityFlow AI has three separate parts, and they are intentionally kept apart:
 | **1** | Foundation, design system, landing page, city selection, light/dark theme, authentication, anonymous CityFlow ID | ✅ Complete |
 | **2** | Travel-routine onboarding, demand model + recommendation engine, commuter dashboard, Leaflet map, profile editing | ✅ Complete |
 | **3** | AI assistant, travel-intent recognition, confirmed-plan storage, demand aggregation, city-wide re-optimisation | ✅ Complete |
-| 4 | Admin Portal, traffic intelligence, SUMO + OpenStreetMap evaluation | ⏳ Not started |
+| **4** | Admin Portal, demand heatmap, reports, system status, SUMO + OpenStreetMap evaluation structure | ✅ Complete |
 | 5 | Road-impact detection, participation, final polish and security review | ⏳ Not started |
 
 ---

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { AdminHeader } from "@/components/admin/admin-header";
 import { Logo } from "@/components/brand/logo";
 import { ASSISTANT_NAME } from "@/lib/chat/branding";
 import { CitySelector } from "@/components/city/city-selector";
@@ -36,6 +37,14 @@ const NAV_LINKS = [
 export function SiteHeader({ session }: { session: HeaderSession | null }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  /*
+    The Admin Portal has its own chrome. Swapping it in here — rather than
+    restructuring the app into route groups — keeps one header component
+    responsible for "what does the top of the page look like", and guarantees
+    the commuter navigation can never appear on an admin screen.
+  */
+  if (pathname.startsWith("/admin")) return <AdminHeader />;
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -94,6 +103,26 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
                   )}
                 >
                   My dashboard
+                </Link>
+              )}
+
+              {/*
+                Admins reach the portal from here. It is deliberately the last
+                item and visually identical to the rest — the Admin Portal is a
+                different part of the product, not a status symbol.
+              */}
+              {session?.role === "ADMIN" && (
+                <Link
+                  href="/admin"
+                  aria-current={pathname.startsWith("/admin") ? "page" : undefined}
+                  className={cn(
+                    "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    pathname.startsWith("/admin")
+                      ? "bg-primary-soft text-primary"
+                      : "text-muted hover:bg-surface-2 hover:text-fg"
+                  )}
+                >
+                  Admin Portal
                 </Link>
               )}
 
@@ -222,6 +251,15 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
                   >
                     My profile
                   </Link>
+                  {session.role === "ADMIN" && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
+                    >
+                      Admin Portal
+                    </Link>
+                  )}
                   <p className="px-3 py-1 text-xs text-subtle">
                     CityFlow ID:{" "}
                     <span className="font-mono text-muted">{session.cityflowId}</span>
