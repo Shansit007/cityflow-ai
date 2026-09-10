@@ -1,117 +1,189 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { CITY_COOKIE_NAME } from "@/components/city/city-provider";
+import { HistoryCard } from "@/components/dashboard/history-card";
+import { PeakStrip } from "@/components/dashboard/peak-strip";
+import { RecommendationCard } from "@/components/dashboard/recommendation-card";
+import { UpdateNotice } from "@/components/dashboard/update-notice";
+import {
+  RoadConditionsCard,
+  RoutineCard,
+  TrafficStatusCard,
+  TravelOptionsCard,
+} from "@/components/dashboard/status-cards";
+import { MapPanel } from "@/components/map/map-panel";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader } from "@/components/ui/card";
+import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
+import { Notice } from "@/components/ui/input";
+import { appHour, formatAppDate } from "@/lib/app-time";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getCity } from "@/lib/cities";
+import { DEMAND_LEVEL_LABEL } from "@/lib/demand/demand-model";
+import {
+  loadRecommendationHistory,
+  loadTodayForUser,
+} from "@/lib/recommendation-service";
+import { greetingForHour } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "My dashboard",
 };
 
 /**
- * Commuter dashboard — PHASE 1 VERSION.
+ * The commuter dashboard.
  *
- * At this stage the dashboard only confirms that authentication, the anonymous
- * ID and the city context all work end to end. The real content — today's
- * recommendation, the upcoming-peak strip, the map and the routine editor — is
- * built in Phase 2.
+ * It is built to answer one question above all others, in the first screenful:
+ * WHEN SHOULD I LEAVE TODAY? Everything else — the demand strip, the map, the
+ * routine, travel options, history — exists to support or explain that answer.
  *
- * It deliberately shows placeholders labelled as such rather than invented
- * traffic numbers, because showing fake data here would make the product look
- * like it works when it does not yet.
+ * This is a server component. It loads the data, runs the recommendation engine
+ * and hands finished values to the display components, so the browser never has
+ * to fetch anything before showing the answer.
  */
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ welcome?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const city = getCity(user.cityCode);
-  const greetingName = user.displayName ?? "there";
+  // A user without a routine cannot be given a recommendation, so send them to
+  // set one up rather than showing a dashboard full of empty cards.
+  const params = await searchParams;
 
-  const upcomingSections = [
-    {
-      title: "Today's travel recommendation",
-      body: "A recommended departure time, your usual time, the reason behind the suggestion, and buttons to accept or change your plan.",
-    },
-    {
-      title: "Traffic status and upcoming peak",
-      body: "Current status for your area, and how demand is expected to build across the next few 15-minute slots.",
-    },
-    {
-      title: "My routine",
-      body: "Your home and work or college location, usual departure, required arrival, and how flexible you are.",
-    },
-    {
-      title: "Map experience",
-      body: "Traffic visualisation, incident markers and road-condition markers on an OpenStreetMap base layer.",
-    },
-    {
-      title: "Road conditions near you",
-      body: "Possible road issues reported near your regular route, with confidence and status.",
-    },
-    {
-      title: "Recommendation history",
-      body: "What was recommended, what you chose, and the outcome where it is available.",
-    },
-  ];
+  // The city shown must match the city the demand numbers were computed for.
+  // The selector writes a cookie; the profile stores a fallback.
+  const cookieStore = await cookies();
+  const cityCode = cookieStore.get(CITY_COOKIE_NAME)?.value ?? user.cityCode;
+  const city = getCity(cityCode);
+
+  const today = await loadTodayForUser(user.id, city.code);
+
+  if (!today.profile) redirect("/onboarding");
+
+  const history = await loadRecommendationHistory(user.id);
+
+  const greeting = greetingForHour(appHour());
+  const name = user.displayName ?? "there";
+  const engine = today.engine!;
+  const recommendation = today.recommendation!;
 
   return (
-    <section className="py-10 sm:py-14">
+    <section className="py-8 sm:py-12">
       <Container width="wide">
-        {/* ------------------------------------------------------- header */}
+        {/* ------------------------------------------------------- greeting */}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-fg sm:text-3xl">
-              Hello, {greetingName}
+              {greeting}, {name}
             </h1>
             <p className="mt-2 text-sm text-muted">
-              CityFlow ID:{" "}
-              <span className="font-mono font-medium text-fg">{user.cityflowId}</span>
+              {formatAppDate()}
               <span className="mx-2 text-border-strong" aria-hidden="true">
                 ·
               </span>
-              Viewing <span className="font-medium text-fg">{city.name}</span>
+              {city.name}
+              <span className="mx-2 text-border-strong" aria-hidden="true">
+                ·
+              </span>
+              CityFlow ID{" "}
+              <span className="font-mono font-medium text-fg">{user.cityflowId}</span>
             </p>
           </div>
 
-          <Badge tone="primary">Phase 1 · foundation ready</Badge>
+          <ButtonLink href="/profile" variant="outline" size="sm">
+            Edit my routine
+          </ButtonLink>
         </div>
 
-        {/* ------------------------------------------- honest status notice */}
-        <Card raised className="mt-8">
-          <CardHeader
-            title="Your account is set up"
-            description="Authentication, your anonymous CityFlow ID and city context are working."
+        {/*
+          Shown when the city-wide optimiser moved this person's time because
+          other people's confirmed plans changed the demand picture.
+        */}
+        {recommendation.updatedByOptimiser &&
+          !recommendation.updateAcknowledged &&
+          recommendation.updateReason && (
+            <div className="mt-6">
+              <UpdateNotice reason={recommendation.updateReason} />
+            </div>
+          )}
+
+        {params.welcome === "1" && (
+          <div className="mt-6">
+            <Notice tone="success">
+              Your CityFlow profile is ready. Here is your first departure recommendation.
+            </Notice>
+          </div>
+        )}
+
+        {/* -------------------------------------- the answer, above the fold */}
+        <div className="mt-8">
+          <RecommendationCard
+            recommendedDeparture={engine.recommendedDeparture}
+            usualDeparture={engine.usualDeparture}
+            requiredArrival={today.profile.requiredArrival}
+            estimatedArrival={engine.estimatedArrival}
+            estimatedJourneyMinutes={engine.estimatedJourneyMinutes}
+            demandAtUsual={engine.demandAtUsual}
+            demandAtRecommended={engine.demandAtRecommended}
+            levelAtUsual={engine.levelAtUsual}
+            levelAtRecommended={engine.levelAtRecommended}
+            levelLabelAtUsual={DEMAND_LEVEL_LABEL[engine.levelAtUsual]}
+            levelLabelAtRecommended={DEMAND_LEVEL_LABEL[engine.levelAtRecommended]}
+            suggestsChange={engine.suggestsChange}
+            reason={engine.reason}
+            benefit={engine.benefit}
+            warning={engine.warning}
+            initialStatus={recommendation.status}
+            initialChosenDeparture={recommendation.chosenDeparture}
           />
+        </div>
 
-          <p className="text-sm leading-relaxed text-muted">
-            The next step is telling CityFlow AI about your regular travel routine — where you
-            usually travel, when you normally leave, when you need to arrive and how flexible
-            that is. That onboarding flow, together with the real dashboard, is built in the
-            next phase of development.
+        {/* ------------------------------------------- supporting information */}
+        <div className="mt-6 grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <PeakStrip
+              slots={today.peakStrip}
+              usualDeparture={engine.usualDeparture}
+              recommendedDeparture={engine.recommendedDeparture}
+            />
+          </div>
+
+          <TrafficStatusCard now={today.now} cityName={city.name} />
+        </div>
+
+        {/* ------------------------------------------------------------ map */}
+        <div className="mt-6">
+          <MapPanel demandLevel={today.now.level} demandLabel={today.now.label} />
+        </div>
+
+        {/* --------------------------------------------------- routine & co. */}
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <RoutineCard profile={today.profile} />
+          <TravelOptionsCard profile={today.profile} />
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <RoadConditionsCard area={today.profile.homeArea} />
+          <HistoryCard recommendations={history} />
+        </div>
+
+        {/* ------------------------------------------------- honesty footer */}
+        <div className="mt-8 rounded-card border border-border-base bg-surface-2 p-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge tone="neutral">How to read this page</Badge>
+          </div>
+          <p className="mt-3 text-sm leading-relaxed text-muted">
+            Every demand figure here is a <span className="font-medium text-fg">prediction</span>{" "}
+            from CityFlow AI&apos;s demand model, not a live measurement of traffic. Journey and
+            arrival estimates are based on the normal journey time you entered. Recommendations
+            are suggestions — you always decide when to leave, and choosing your usual time is
+            never wrong.
           </p>
-
-          <p className="mt-4 rounded-lg bg-surface-2 p-4 text-sm leading-relaxed text-fg">
-            Nothing on this page is invented traffic data. Real recommendations appear once
-            the demand prediction and optimisation services are connected.
-          </p>
-        </Card>
-
-        {/* --------------------------------------------- what comes next */}
-        <h2 className="mt-12 text-lg font-semibold text-fg">Coming to this dashboard</h2>
-
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {upcomingSections.map((section) => (
-            <Card key={section.title}>
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="text-sm font-semibold text-fg">{section.title}</h3>
-                <Badge tone="neutral">Phase 2</Badge>
-              </div>
-              <p className="mt-2 text-sm leading-relaxed text-muted">{section.body}</p>
-            </Card>
-          ))}
         </div>
       </Container>
     </section>

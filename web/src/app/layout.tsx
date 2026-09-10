@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 
 import "./globals.css";
 
+import { AssistantLauncher } from "@/components/chat/assistant-launcher";
 import { CityProvider, CITY_COOKIE_NAME } from "@/components/city/city-provider";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -96,6 +97,14 @@ export default async function RootLayout({
               </main>
 
               <SiteFooter />
+
+              {/*
+                A shortcut to the assistant, for signed-in commuters only. There
+                is nothing useful it can do for a visitor with no travel
+                routine, and a floating button on the landing page would just be
+                noise.
+              */}
+              {session?.role === "USER" && <AssistantLauncher />}
             </div>
           </CityProvider>
         </ThemeProvider>

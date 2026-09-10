@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Logo } from "@/components/brand/logo";
+import { ASSISTANT_NAME } from "@/lib/chat/branding";
 import { CitySelector } from "@/components/city/city-selector";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -93,6 +94,21 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
                   )}
                 >
                   My dashboard
+                </Link>
+              )}
+
+              {session && (
+                <Link
+                  href="/assistant"
+                  aria-current={pathname.startsWith("/assistant") ? "page" : undefined}
+                  className={cn(
+                    "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    pathname.startsWith("/assistant")
+                      ? "bg-primary-soft text-primary"
+                      : "text-muted hover:bg-surface-2 hover:text-fg"
+                  )}
+                >
+                  {ASSISTANT_NAME}
                 </Link>
               )}
             </nav>
@@ -191,6 +207,20 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
                     className="rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
                   >
                     My dashboard
+                  </Link>
+                  <Link
+                    href="/assistant"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
+                  >
+                    {ASSISTANT_NAME} · assistant
+                  </Link>
+                  <Link
+                    href="/profile"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
+                  >
+                    My profile
                   </Link>
                   <p className="px-3 py-1 text-xs text-subtle">
                     CityFlow ID:{" "}

@@ -47,8 +47,8 @@ CityFlow AI has three separate parts, and they are intentionally kept apart:
 | Phase | Scope | Status |
 |---|---|---|
 | **1** | Foundation, design system, landing page, city selection, light/dark theme, authentication, anonymous CityFlow ID | ✅ Complete |
-| 2 | Travel-routine onboarding, commuter dashboard, map experience | ⏳ Not started |
-| 3 | AI assistant, travel intent, demand aggregation and re-optimisation | ⏳ Not started |
+| **2** | Travel-routine onboarding, demand model + recommendation engine, commuter dashboard, Leaflet map, profile editing | ✅ Complete |
+| **3** | AI assistant, travel-intent recognition, confirmed-plan storage, demand aggregation, city-wide re-optimisation | ✅ Complete |
 | 4 | Admin Portal, traffic intelligence, SUMO + OpenStreetMap evaluation | ⏳ Not started |
 | 5 | Road-impact detection, participation, final polish and security review | ⏳ Not started |
 
@@ -58,7 +58,7 @@ CityFlow AI has three separate parts, and they are intentionally kept apart:
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 15 (App Router) + TypeScript |
+| Framework | Next.js 16 (App Router) + TypeScript |
 | Styling | Tailwind CSS v4 with CSS-variable design tokens |
 | Database | PostgreSQL on Neon (free plan) |
 | ORM | Prisma |

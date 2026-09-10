@@ -70,3 +70,147 @@ export function fieldErrorsFrom(error: z.ZodError): Record<string, string> {
 
   return errors;
 }
+
+/* ==========================================================================
+   PHASE 2 — travel profile (onboarding + profile editing)
+   ========================================================================== */
+
+/** 24-hour "HH:MM". */
+export const timeOfDaySchema = z
+  .string()
+  .trim()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Please enter a time as HH:MM, e.g. 09:00");
+
+/** An area name. Deliberately an AREA, never a full street address. */
+export const areaSchema = z
+  .string()
+  .trim()
+  .min(2, "Please enter at least 2 characters")
+  .max(80, "Please keep this under 80 characters");
+
+const transportModeSchema = z.enum([
+  "CAR",
+  "BIKE",
+  "BUS",
+  "METRO",
+  "WALK",
+  "CYCLE",
+  "OTHER",
+]);
+
+const destinationTypeSchema = z.enum(["WORK", "COLLEGE", "SCHOOL", "OTHER"]);
+
+const dayCodeSchema = z.enum(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]);
+
+/**
+ * The complete travel routine.
+ *
+ * Used by BOTH the onboarding flow and the profile editor, so the two can never
+ * drift apart and accept different things.
+ */
+export const travelProfileSchema = z
+  .object({
+    // Step 1 — the journey
+    homeArea: areaSchema,
+    destinationArea: areaSchema,
+    destinationType: destinationTypeSchema,
+    primaryMode: transportModeSchema,
+
+    // Step 2 — the schedule
+    usualDeparture: timeOfDaySchema,
+    requiredArrival: timeOfDaySchema,
+    typicalJourneyMinutes: z
+      .number()
+      .int("Please enter a whole number of minutes")
+      .min(1, "Journey time must be at least 1 minute")
+      .max(300, "Please enter a journey time under 5 hours"),
+    travelDays: z
+      .array(dayCodeSchema)
+      .min(1, "Please choose at least one travel day"),
+    isFlexible: z.boolean(),
+    flexibilityMinutes: z.number().int().min(0).max(120),
+
+    // Step 3 — preferences
+    preferredModes: z.array(transportModeSchema).max(7),
+    maxAcceptableDelayMinutes: z.number().int().min(0).max(120),
+    willingToLeaveEarlier: z.boolean(),
+    willingToLeaveLater: z.boolean(),
+    carpoolInterest: z.boolean(),
+    publicTransportInterest: z.boolean(),
+
+    // Step 4 — privacy
+    shareAggregatedDemand: z.boolean(),
+    allowNotifications: z.boolean(),
+  })
+  .refine(
+    (data) => {
+      // The required arrival must leave room for the journey itself. Times that
+      // cross midnight are allowed, so only same-day ordering is checked.
+      const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+      const departure = toMin(data.usualDeparture);
+      const arrival = toMin(data.requiredArrival);
+      if (arrival < departure) return true; // crosses midnight — not our problem here
+      return arrival - departure >= data.typicalJourneyMinutes;
+    },
+    {
+      message:
+        "Your required arrival is earlier than your departure plus your journey time. Please check these three values.",
+      path: ["requiredArrival"],
+    }
+  )
+  .refine((data) => !data.isFlexible || data.willingToLeaveEarlier || data.willingToLeaveLater, {
+    message:
+      "If your departure is flexible, please allow leaving earlier, later, or both.",
+    path: ["willingToLeaveEarlier"],
+  });
+
+export type TravelProfileInput = z.infer<typeof travelProfileSchema>;
+
+/** Payload for recording what the user decided about today's recommendation. */
+export const recommendationDecisionSchema = z.object({
+  decision: z.enum(["ACCEPTED", "KEPT_USUAL", "CUSTOM"]),
+  /** Required only when the decision is CUSTOM. */
+  chosenDeparture: timeOfDaySchema.optional(),
+});
+
+export type RecommendationDecisionInput = z.infer<typeof recommendationDecisionSchema>;
+
+/* ==========================================================================
+   PHASE 3 — assistant messages and confirmed travel intentions
+   ========================================================================== */
+
+/** One message typed into the CityFlow AI assistant. */
+export const chatMessageSchema = z.object({
+  message: z
+    .string()
+    .trim()
+    .min(1, "Please type a message")
+    .max(400, "Please keep messages under 400 characters"),
+});
+
+/**
+ * A change the person has explicitly confirmed.
+ *
+ * At least one of the three must be present — an empty confirmation would write
+ * a row that says nothing.
+ */
+export const intentConfirmSchema = z
+  .object({
+    /** The assistant message whose card was pressed, so it can be marked done. */
+    messageId: z.string().trim().max(40).optional(),
+    updatedDeparture: timeOfDaySchema.optional(),
+    transportMode: z
+      .enum(["CAR", "BIKE", "BUS", "METRO", "WALK", "CYCLE", "OTHER"])
+      .optional(),
+    cancel: z.boolean().optional(),
+  })
+  .refine(
+    (data) =>
+      data.updatedDeparture !== undefined ||
+      data.transportMode !== undefined ||
+      data.cancel === true,
+    { message: "There is nothing to confirm." }
+  );
+
+export type ChatMessageInput = z.infer<typeof chatMessageSchema>;
+export type IntentConfirmInput = z.infer<typeof intentConfirmSchema>;

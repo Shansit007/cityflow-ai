@@ -311,3 +311,58 @@ body {
 .cf-theme-loading * {
   transition: none !important;
 }
+
+/* --------------------------------------------------------------------------
+   6. MAP (Leaflet + OpenStreetMap)
+   -------------------------------------------------------------------------- */
+
+/*
+  Leaflet gives its internal panes z-index values in the hundreds. Without a
+  stacking context of its own, the map would paint on top of the sticky header.
+  Setting z-index on the container confines all of that to the card.
+*/
+.leaflet-container {
+  z-index: 0;
+  background: var(--cf-surface-2);
+  font-family: inherit;
+}
+
+/*
+  Dark mode without a second (paid) tile provider: invert and re-rotate the hue
+  of the OpenStreetMap tiles only. Markers, popups and our own overlays are NOT
+  affected, because the filter is applied to the tile layer alone.
+*/
+.dark .cf-map-tiles {
+  filter: invert(1) hue-rotate(180deg) brightness(0.94) contrast(0.9) saturate(0.75);
+}
+
+/* Popups and controls follow the theme instead of Leaflet's fixed white. */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--cf-surface);
+  color: var(--cf-fg);
+  box-shadow: var(--cf-shadow-md);
+}
+
+.leaflet-popup-content {
+  margin: 0.75rem 0.9rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  background: var(--cf-surface);
+  color: var(--cf-fg);
+  border-bottom-color: var(--cf-border);
+}
+
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--cf-surface) 85%, transparent) !important;
+  color: var(--cf-fg-muted) !important;
+  font-size: 0.65rem;
+}
+
+.leaflet-control-attribution a {
+  color: var(--cf-primary) !important;
+}

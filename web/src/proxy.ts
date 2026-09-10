@@ -20,7 +20,13 @@ import { verifySessionToken } from "@/lib/auth/jwt";
  */
 
 /** Pages that require a signed-in commuter. */
-const PROTECTED_PREFIXES = ["/dashboard", "/welcome", "/profile"];
+const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/welcome",
+  "/profile",
+  "/onboarding",
+  "/assistant",
+];
 
 /** Pages that a signed-in user should not see again (they would be confusing). */
 const AUTH_ONLY_PREFIXES = ["/login", "/signup"];

@@ -1,0 +1,230 @@
+import Link from "next/link";
+import type { TravelProfile } from "@prisma/client";
+
+import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader } from "@/components/ui/card";
+import type { DemandSlot } from "@/lib/demand/demand-model";
+import { WEEKDAYS, formatDuration, formatTime } from "@/lib/demand/time-slots";
+import { demandBadgeTone, demandTextClass } from "@/lib/demand/ui";
+import { DESTINATION_TYPES, getTransportMode } from "@/lib/travel";
+
+/**
+ * The smaller dashboard cards: current traffic status, the saved routine, road
+ * conditions and travel options.
+ *
+ * They are grouped in one file because they are all short, read-only summaries
+ * with no state of their own — splitting them into four files would add
+ * navigation cost without adding clarity.
+ */
+
+/* -------------------------------------------------------------------------- */
+/*  Traffic status right now                                                   */
+/* -------------------------------------------------------------------------- */
+
+export function TrafficStatusCard({ now, cityName }: { now: DemandSlot; cityName: string }) {
+  return (
+    <Card>
+      <CardHeader
+        title="Traffic status"
+        description={`Predicted for ${cityName}, right now`}
+        action={<Badge tone={demandBadgeTone(now.level)}>{now.label}</Badge>}
+      />
+
+      <p className={`text-3xl font-semibold tracking-tight ${demandTextClass(now.level)}`}>
+        {now.label}
+      </p>
+
+      <p className="mt-2 text-sm leading-relaxed text-muted">
+        Demand index {now.index} out of 100 for the {formatTime(now.time)} slot. Higher means
+        closer to comfortable road capacity.
+      </p>
+
+      <p className="mt-3 text-xs leading-relaxed text-subtle">
+        This is a modelled prediction of travel demand, not a live measurement of traffic on
+        the road.
+      </p>
+    </Card>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  The saved routine                                                          */
+/* -------------------------------------------------------------------------- */
+
+export function RoutineCard({ profile }: { profile: TravelProfile }) {
+  const mode = getTransportMode(profile.primaryMode);
+  const destinationLabel =
+    DESTINATION_TYPES.find((type) => type.code === profile.destinationType)?.label ??
+    "Destination";
+
+  const dayLabels = WEEKDAYS.filter((day) =>
+    profile.travelDays.includes(day.code)
+  ).map((day) => day.label);
+
+  return (
+    <Card>
+      <CardHeader
+        title="My routine"
+        action={
+          <Link href="/profile" className="text-sm font-medium text-primary underline">
+            Edit
+          </Link>
+        }
+      />
+
+      <p className="text-base font-medium text-fg">
+        {profile.homeArea} → {profile.destinationArea}
+      </p>
+      <p className="mt-1 text-xs text-muted">
+        {destinationLabel} · by {mode.label}
+      </p>
+
+      <dl className="mt-4 space-y-2 text-sm">
+        <Row label="Usual departure" value={formatTime(profile.usualDeparture)} />
+        <Row label="Required arrival" value={formatTime(profile.requiredArrival)} />
+        <Row
+          label="Normal journey"
+          value={formatDuration(profile.typicalJourneyMinutes)}
+        />
+        <Row
+          label="Flexibility"
+          value={
+            profile.isFlexible
+              ? `${profile.flexibilityMinutes} minutes${
+                  profile.willingToLeaveEarlier && profile.willingToLeaveLater
+                    ? " either way"
+                    : profile.willingToLeaveEarlier
+                      ? " earlier only"
+                      : " later only"
+                }`
+              : "Fixed departure"
+          }
+        />
+        <Row label="Travel days" value={dayLabels.join(", ") || "None selected"} />
+      </dl>
+    </Card>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 border-b border-border-base pb-2 last:border-0 last:pb-0">
+      <dt className="text-muted">{label}</dt>
+      <dd className="text-right font-medium text-fg">{value}</dd>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Road conditions                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Road conditions near the user.
+ *
+ * Phase 2 has no road-impact data — smartphone detection is built in Phase 5.
+ * Rather than invent a "possible pothole on Main Road", this shows an honest
+ * empty state that explains where the data will come from and who acts on it.
+ */
+export function RoadConditionsCard({ area }: { area: string }) {
+  return (
+    <Card>
+      <CardHeader title="Road conditions near you" />
+
+      <div className="rounded-lg border border-dashed border-border-strong bg-surface-2 p-5 text-center">
+        <p className="text-sm font-medium text-fg">No road reports for {area} yet</p>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">
+          Road-impact detection is not switched on yet. When it is, possible road issues
+          detected from smartphone motion sensors will appear here — and only after several
+          detections at the same place, never from a single reading.
+        </p>
+      </div>
+
+      <p className="mt-4 text-xs leading-relaxed text-subtle">
+        Inspection and repair are handled by the municipal road-maintenance system, which is a
+        separate service. CityFlow AI identifies and prioritises possible issues; it does not
+        carry out repairs or report on their progress.
+      </p>
+    </Card>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Travel options                                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Modes the person could use, with an honest note on road impact.
+ *
+ * The ordering is deliberate: their own primary mode first (this is their
+ * dashboard, not a lecture), then the alternatives they said they were open to,
+ * then the rest.
+ */
+export function TravelOptionsCard({ profile }: { profile: TravelProfile }) {
+  const primary = getTransportMode(profile.primaryMode);
+  const openTo = profile.preferredModes
+    .filter((code) => code !== profile.primaryMode)
+    .map((code) => getTransportMode(code));
+
+  const IMPACT_NOTE: Record<string, string> = {
+    high: "Uses the most road space per traveller",
+    medium: "Uses some road space per traveller",
+    low: "Shares road space between many travellers",
+    none: "Does not use road capacity",
+  };
+
+  return (
+    <Card>
+      <CardHeader
+        title="Travel options"
+        description="Your usual mode, and the alternatives you said you are open to."
+      />
+
+      <ul className="space-y-2">
+        <li className="flex items-center justify-between gap-3 rounded-lg border border-primary bg-primary-soft p-3">
+          <div>
+            <p className="text-sm font-semibold text-primary">{primary.label}</p>
+            <p className="text-xs text-muted">{IMPACT_NOTE[primary.roadImpact]}</p>
+          </div>
+          <Badge tone="primary">Your usual</Badge>
+        </li>
+
+        {openTo.map((mode) => (
+          <li
+            key={mode.code}
+            className="flex items-center justify-between gap-3 rounded-lg border border-border-base bg-surface p-3"
+          >
+            <div>
+              <p className="text-sm font-medium text-fg">{mode.label}</p>
+              <p className="text-xs text-muted">{IMPACT_NOTE[mode.roadImpact]}</p>
+            </div>
+            <Badge tone="neutral">Open to</Badge>
+          </li>
+        ))}
+      </ul>
+
+      {openTo.length === 0 && (
+        <p className="mt-3 text-xs leading-relaxed text-subtle">
+          You have not listed any alternative modes. You can add some from{" "}
+          <Link href="/profile" className="font-medium text-primary underline">
+            My profile
+          </Link>{" "}
+          if you would like to see other options here.
+        </p>
+      )}
+
+      {(profile.carpoolInterest || profile.publicTransportInterest) && (
+        <p className="mt-4 rounded-lg bg-surface-2 p-3 text-xs leading-relaxed text-muted">
+          You have registered interest in{" "}
+          {[
+            profile.carpoolInterest ? "carpooling" : null,
+            profile.publicTransportInterest ? "public transport" : null,
+          ]
+            .filter(Boolean)
+            .join(" and ")}
+          . Matching for these is not built yet — nothing has been arranged on your behalf.
+        </p>
+      )}
+    </Card>
+  );
+}

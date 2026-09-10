@@ -1,6 +1,6 @@
 # CityFlow AI — Architecture
 
-> Status: **Phase 1 complete.** Phases 2–5 are planned and the folder structure
+> Status: **Phases 1, 2 and 3 complete.** Phases 4–5 are planned and the folder structure
 > already anticipates them, but their code does not exist yet. Anything marked
 > *(planned)* is not implemented.
 
@@ -30,7 +30,7 @@ optimisation, demand forecasting, the recommendation engine, or the Admin Portal
 
 | Layer | Choice | Why |
 |---|---|---|
-| Framework | **Next.js 15** (App Router, TypeScript) | Frontend and backend in one deployable unit |
+| Framework | **Next.js 16** (App Router, TypeScript) | Frontend and backend in one deployable unit |
 | Styling | **Tailwind CSS v4** with CSS-variable design tokens | Light/dark theming without duplicating styles |
 | Database | **PostgreSQL on Neon** (free tier) | Free plan does not expire and does not pause the project |
 | ORM | **Prisma** | Type-safe queries; schema is the single source of truth |
@@ -58,17 +58,29 @@ cityflow-ai/
         │   ├── auth/         Sign-up / log-in forms, CityFlow ID card
         │   ├── brand/        Logo
         │   ├── city/         City context, selector, skyline artwork, backdrop
+        │   ├── chat/         The assistant panel and its confirmation card
+        │   ├── dashboard/    Recommendation card, peak strip, status cards, history
         │   ├── landing/      Landing-page sections
         │   ├── layout/       Header and footer
+        │   ├── map/          Leaflet map + search, loaded browser-side only
+        │   ├── onboarding/   The four-step travel-routine wizard
+        │   ├── profile/      Profile editor (reuses the onboarding steps)
         │   ├── theme/        Light/dark theme provider and toggle
         │   └── ui/           Reusable primitives (Button, Card, Badge, TextField…)
         ├── lib/
         │   ├── auth/         Password hashing, JWT, session, CityFlow ID generation
+        │   ├── chat/         Time parsing, intent recognition, assistant replies
+        │   ├── demand/       Time slots, baseline model, aggregation, engine, optimiser, zones
+        │   ├── app-time.ts   "Today" and "now" in the application timezone (IST)
         │   ├── cities.ts     Supported cities (single source of truth)
         │   ├── db.ts         Prisma client
         │   ├── env.ts        Environment variable access
+        │   ├── intent-service.ts          Stores a confirmed plan, then re-optimises
+        │   ├── recommendation-service.ts  Ties the engine to the database
+        │   ├── travel.ts     Transport modes and destination types
         │   └── validation.ts Zod schemas shared by client and server
-        └── middleware.ts     Route protection (runs before pages render)
+        └── proxy.ts          Route protection (runs before pages render;
+                               called middleware.ts before Next.js 16)
 ```
 
 **Rule followed throughout:** UI components never talk to the database. They call
@@ -97,14 +109,87 @@ Browser (signup form)
 
 ```
 Browser → /dashboard
-  → middleware.ts verifies the cookie signature (Edge runtime, no database)
+  → proxy.ts verifies the cookie signature (no database call)
       → invalid?  redirect to /login?next=/dashboard
       → valid?    continue
   → page loads the full user record with Prisma (Node runtime)
 ```
 
-**Why the split:** Prisma and bcrypt cannot run on the Edge runtime, so middleware
-only checks the signature. Database work happens in pages and API routes.
+**Why the split:** every request passes through the proxy, so it must stay fast.
+It only verifies the cookie signature; the database is read later, in the page.
+
+---
+
+## 4b. How a recommendation is produced
+
+```
+profile (usual departure, required arrival, journey time, flexibility)
+        +
+demand model  →  predicted demand index 0-100 per 15-minute slot
+        ↓
+only slots the person AGREED to (earlier / later / neither)
+        ↓
+discard any slot whose estimated arrival misses the required arrival
+        ↓
+pick the lowest-demand slot; tie-break towards the usual time
+        ↓
+is it at least 8 index points better?  no → recommend keeping the usual time
+        ↓
+store it (with its reason) + explain it on screen
+```
+
+**The demand model is a modelled baseline, not measured traffic.** It reproduces
+the shape urban demand reliably takes — an overnight floor, a sharp morning
+peak, a midday bump, a broader evening peak, a flatter weekend — scaled per
+city and varied per day by a deterministic wobble. `predictDemandIndex()` in
+`lib/demand/demand-model.ts` is the single seam where real aggregated demand
+replaces it in Phase 3; no screen has to change.
+
+---
+
+## 4c. Demand smoothing — how the peak is not simply moved
+
+This is the mechanism the whole project exists for.
+
+```
+person confirms a plan in the assistant
+        ↓
+POST /api/intent/confirm          ← the ONLY endpoint that writes travel data
+        ↓
+travel_intentions row (structured; the chat text is never stored)
+        ↓
+demand_slot_aggregates: one trip moves from its old slot to its new slot
+        ↓
+adjusted(slot) = baseline(slot)
+               + confirmed trips in slot × TRIP_WEIGHT
+               + any active network event
+        ↓
+reoptimiseCity(): recompute EVERY pending recommendation, in a stable order,
+                  adding each person's new slot to the curve BEFORE the next
+                  person is considered
+        ↓
+anyone whose time moved gets updatedByOptimiser + updateReason
+        ↓
+dashboard shows "Your recommendation has been updated", and why
+```
+
+**Why this cannot stack everyone on one slot.** The demand value the engine
+reads already contains everybody else's confirmed departures. The moment people
+start moving to 8:45, 8:45's index rises — for the next person to ask, and for
+the re-optimisation pass. The sequential pass in `optimizer.ts` is what turns
+"everyone is told 8:45" into 8:30 / 8:45 / 9:00.
+
+**What the optimiser will not do.** It never moves someone who has already
+committed; it never rewrites a stored travel intention; it never breaks a
+person's required arrival or their stated flexibility direction. It changes what
+is *recommended*, tells them it changed, and leaves the decision with them.
+
+**Determinism.** Users are processed ordered by id, so the same data always
+produces the same result. That is what makes the outcome explainable rather
+than a lottery.
+
+**Where it runs.** Inline after each confirmation — a few dozen rows at this
+scale. In a real deployment this belongs on a queue.
 
 ---
 
@@ -123,7 +208,7 @@ only checks the signature. Database work happens in pages and API routes.
 | Phase | Adds |
 |---|---|
 | **2** | Travel-routine onboarding, real commuter dashboard, Leaflet map, profile editing. New tables: `TravelProfile`, `Recommendation` |
-| **3** | AI assistant, intent recognition, confirmation flow, `TravelIntention` table, demand aggregation, re-optimisation loop |
+| **3** | ✅ Built: assistant, intent recognition, confirmation flow, `TravelIntention`, `DemandSlotAggregate`, `NetworkEvent`, city-wide re-optimisation |
 | **4** | Admin Portal (separate auth + `/admin` routes), demand heatmap, reports, system health, SUMO + OpenStreetMap simulation structure, baseline vs CityFlow AI comparison |
 | **5** | Smartphone road-impact detection, citizen road-issue reporting, hand-off to the existing Municipal Dashboard, participation/rewards, final accessibility and security pass |
 

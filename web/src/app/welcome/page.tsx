@@ -76,8 +76,8 @@ export default async function WelcomePage() {
         </div>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <ButtonLink href="/dashboard" size="lg">
-            Continue to my dashboard
+          <ButtonLink href="/onboarding" size="lg">
+            Set up my travel routine
           </ButtonLink>
           <ButtonLink href="/how-it-works#privacy" variant="outline" size="lg">
             Read more about privacy

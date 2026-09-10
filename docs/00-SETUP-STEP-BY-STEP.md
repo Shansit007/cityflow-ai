@@ -181,7 +181,7 @@ npm run dev
 ✅ **Success looks like:**
 
 ```
-▲ Next.js 15.1.6
+▲ Next.js 15.5.24
 - Local: http://localhost:3000
 ✓ Ready in 2.1s
 ```
