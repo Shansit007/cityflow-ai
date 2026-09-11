@@ -99,12 +99,18 @@ export default async function RootLayout({
               <SiteFooter />
 
               {/*
-                A shortcut to the assistant, for signed-in commuters only. There
-                is nothing useful it can do for a visitor with no travel
-                routine, and a floating button on the landing page would just be
-                noise.
+                Saarthi, reachable from every signed-in page.
+
+                Shown to admins as well as commuters — an administrator is also
+                a person with a commute, and their account works exactly like
+                anybody else's outside the Admin Portal. The launcher hides
+                itself on /admin and on the assistant page; see the component.
+
+                Not shown to signed-out visitors: there is nothing useful it
+                could do without a travel routine, and a floating button on the
+                landing page would just be noise.
               */}
-              {session?.role === "USER" && <AssistantLauncher />}
+              {session && <AssistantLauncher />}
             </div>
           </CityProvider>
         </ThemeProvider>

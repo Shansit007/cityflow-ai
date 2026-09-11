@@ -72,7 +72,8 @@ cityflow-ai/
         │   ├── admin/        Aggregated analytics + SUMO demand export
         │   ├── roads/        Road issues: merging, evidence, priority, hand-off
         │   ├── auth/         Password hashing, JWT, session, CityFlow ID generation, admin guard
-        │   ├── chat/         Time parsing, intent recognition, assistant replies
+        │   ├── chat/         Time parsing, intent recognition, assistant replies,
+        │   │                 and app-guide.ts — what Saarthi knows about the app
         │   ├── demand/       Time slots, baseline model, aggregation, engine, optimiser, zones
         │   ├── app-time.ts   "Today" and "now" in the application timezone (IST)
         │   ├── cities.ts     Supported cities (single source of truth)
@@ -310,6 +311,57 @@ is being earned, because fake points would be worse than no points.
 
 ---
 
+## 4h. Saarthi, and the two questions a commuter actually asks
+
+Saarthi answers two different kinds of thing, and they are parsed by the same
+rule-based pipeline:
+
+```
+"I want to leave at 6 PM today"      →  a TRAVEL INTENT      →  a proposal card
+"Where do I report a pothole?"       →  an APP QUESTION      →  an answer + a link
+```
+
+**Why the second one exists.** Before it, every "where is…", "how do I…" and
+"who can see my data" fell through to the parser's UNKNOWN branch and was
+answered with a list of travel sentences. That is a bad answer: the person asked
+something reasonable and the product does have an answer. An assistant that
+cannot explain the thing it is embedded in is not a guide, and *saarthi* means
+guide.
+
+**How the two are told apart** — `lib/chat/intent-parser.ts`, in this order:
+
+1. greeting, small talk, `help`
+2. `ASK_RECOMMENDATION` — "when should I leave?" is unambiguous and deserves the
+   real answer rather than a page link
+3. **`ASK_APP_HELP`**, but only when all three hold:
+   - the sentence is SHAPED as a question about the product ("how do I…",
+     "where is…", "what is…"), not as an instruction;
+   - a topic in `lib/chat/app-guide.ts` scores at least
+     `CONFIDENT_TOPIC_SCORE`;
+   - it is not a travel question in disguise. *"What is traffic like at 6 PM"*
+     and *"how does traffic prediction work"* both mention traffic; the first
+     carries **both a clock time and a travel word**, and that combination is
+     never treated as a question about the app.
+4. `ASK_TRAFFIC`, then the travel matchers as before
+
+**Scoring.** A multi-word keyword scores the square of its word count, so one
+three-word hit beats three unrelated one-word hits. A short list of
+`strongKeywords` per topic — words that can only mean that topic in this product,
+like "pothole" or "rewards" — score as much as a two-word phrase.
+
+**When it is unsure it says so.** A weak match is offered as a question
+("Did you want to know about reporting a road problem?"), never answered as
+though it were certain. Being wrong about what somebody asked is worse than
+admitting the guess.
+
+**The rule every answer in `app-guide.ts` follows:** it must be true of the
+application as it exists. No planned feature described as real. Where something
+is not built — changing a password, repair status, rewards — the answer says so.
+An assistant that confidently describes a screen the person then cannot find
+costs them their trust in everything else it said.
+
+---
+
 ## 5. Privacy model
 
 - `users.email` exists for authentication, recovery and service messages **only**.
@@ -336,6 +388,7 @@ is being earned, because fake points would be worse than no points.
 | **2** | Travel-routine onboarding, real commuter dashboard, Leaflet map, profile editing. New tables: `TravelProfile`, `Recommendation` |
 | **3** | ✅ Built: assistant, intent recognition, confirmation flow, `TravelIntention`, `DemandSlotAggregate`, `NetworkEvent`, city-wide re-optimisation |
 | **4** | ✅ Built: Admin Portal at `/admin` with its own chrome and role guard, city overview, zone × slot heatmap, CSV reports, system status, SUMO/OSM demand export and baseline vs CityFlow comparison |
+| **5+** | ✅ Built: Saarthi on every page, app-knowledge answers with "take me there" links, small talk, near-miss suggestions. New column: `ChatMessage.link` |
 | **5** | ✅ Built: citizen road-issue reporting with in-browser photo resizing, phone motion-sensor road-impact detection, duplicate merging, evidence weighting, exposure-based prioritisation, JSON hand-off to the existing Municipal Dashboard, "My CityFlow participation", rate limiting, edge role check, accessibility pass. New tables: `RoadIssue`, `RoadIssueReport` |
 
 ---

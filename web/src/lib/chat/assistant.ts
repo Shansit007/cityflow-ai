@@ -14,6 +14,7 @@ import {
   toTimeString,
 } from "@/lib/demand/time-slots";
 import { ASSISTANT_NAME } from "@/lib/chat/branding";
+import { findTopic } from "@/lib/chat/app-guide";
 import { getTransportMode, type TransportMode } from "@/lib/travel";
 
 /**
@@ -67,6 +68,14 @@ export interface AssistantReply {
   proposal: ProposalCard | null;
   /** True when the person must press Confirm before anything is stored. */
   requiresConfirmation: boolean;
+  /**
+   * An optional "take me there" link shown under the message.
+   *
+   * Telling somebody a feature exists and leaving them to hunt for it is only
+   * half an answer, so when a topic knows where it lives, the answer carries
+   * the way there.
+   */
+  link?: { label: string; href: string };
 }
 
 /** How far either side of a busy slot to look for something quieter. */
@@ -179,25 +188,77 @@ export function buildAssistantReply(
   switch (intent.kind) {
     case "GREETING":
       return {
-        text: `Hello, I am ${ASSISTANT_NAME}. I look after your travel plan for today in ${context.cityName}. Right now you are set to leave at ${formatTime(
-          context.currentDeparture
-        )} — tell me if that changes.`,
+        text:
+          `Hello — I am ${ASSISTANT_NAME}, your travel guide for ${context.cityName}.\n\n` +
+          `Right now you are set to leave at ${formatTime(context.currentDeparture)}. Tell me if that changes and I will keep everything up to date.\n\n` +
+          "You can also just ask me about CityFlow AI — where to report a pothole, what the demand number means, who can see your data. I will tell you where to find things.",
         proposal: null,
         requiresConfirmation: false,
       };
 
+    case "SMALL_TALK": {
+      if (intent.smallTalk === "farewell") {
+        return {
+          text: "Safe journey. I will be here whenever your plan changes.",
+          proposal: null,
+          requiresConfirmation: false,
+        };
+      }
+
+      if (intent.smallTalk === "thanks") {
+        return {
+          text: "Happy to help. Anything else about today's travel, or about how CityFlow AI works?",
+          proposal: null,
+          requiresConfirmation: false,
+        };
+      }
+
+      /*
+        "yes" / "ok" on its own. If they meant to accept a proposal, the Confirm
+        button is what actually saves it — nothing is ever stored from a typed
+        "yes", because the card is the record of exactly what was agreed to.
+      */
+      return {
+        text:
+          "Noted. If you were agreeing to a change I suggested, press Confirm on the card — I only save what you have actually seen and agreed to on screen.",
+        proposal: null,
+        requiresConfirmation: false,
+      };
+    }
+
+    case "ASK_APP_HELP": {
+      const topic = findTopic(intent.topicId ?? "");
+
+      if (!topic) break;
+
+      return {
+        text: topic.answer,
+        proposal: null,
+        requiresConfirmation: false,
+        link: topic.where,
+      };
+    }
+
     case "HELP":
       return {
         text:
-          "You can tell me things like:\n" +
+          "Two kinds of thing.\n\n" +
+          "CHANGE TODAY'S TRAVEL — just tell me:\n" +
           "• “I want to leave at 6 PM today”\n" +
           "• “I need to reach office by 9”\n" +
           "• “I can leave 30 minutes late today”\n" +
           "• “I don't want to leave before 8”\n" +
           "• “I want to take the metro”\n" +
-          "• “I'm not travelling today”\n" +
-          "• “When should I leave?”\n\n" +
-          "I understand travel sentences rather than general conversation, and I always ask before saving anything that is not clear-cut.",
+          "• “I'm not travelling today”\n\n" +
+          "ASK ME ABOUT CITYFLOW AI — I will answer and point you to the page:\n" +
+          "• “Where do I report a pothole?”\n" +
+          "• “How do I change my usual departure time?”\n" +
+          "• “What does the 0-100 number mean?”\n" +
+          "• “Who can see my data?”\n" +
+          "• “Why was I given this time?”\n" +
+          "• “Do I get any rewards?”\n\n" +
+          "I also answer questions about today — “when should I leave?”, “what is traffic like at 6?”.\n\n" +
+          "What I am not: a general chatbot. I match patterns rather than think, so I will not manage your calendar or discuss the weather. And I never save anything you have not seen and agreed to on screen first.",
         proposal: null,
         requiresConfirmation: false,
       };
@@ -368,18 +429,39 @@ export function buildAssistantReply(
       break;
   }
 
+  /*
+    Nothing matched. Two different failures, and they deserve different replies.
+
+    If a topic ALMOST matched — somebody typed "pothole" on its own — offer it
+    as a question. Answering outright would be pretending to a confidence the
+    match does not have, and being wrong about what someone asked is worse than
+    admitting the guess.
+  */
+  const suggested = findTopic(intent.suggestedTopicId ?? "");
+
+  if (suggested) {
+    return {
+      text:
+        `I am not certain I followed that. Did you want to know about ${suggested.title.toLowerCase()}?\n\n` +
+        `${suggested.answer}\n\n` +
+        "If that was not it, try asking in a few more words — or say “help” to see everything I can do.",
+      proposal: null,
+      requiresConfirmation: false,
+      link: suggested.where,
+    };
+  }
+
   return {
     text:
-      "I did not follow that one. I understand travel plans rather than open conversation.\n\n" +
-      "Things I can do:\n" +
-      "• change today's departure — “I want to leave at 6 PM today”\n" +
-      "• work backwards from an arrival — “I need to reach office by 9”\n" +
-      "• shift your plan — “I can leave 30 minutes late today”\n" +
-      "• set a limit — “I don't want to leave before 8”\n" +
-      "• change today's transport — “I want to take the metro”\n" +
-      "• cancel today's trip — “I'm not travelling today”\n" +
-      "• answer questions — “when should I leave?”, “what is traffic like at 6?”\n\n" +
-      "To change WHERE you travel, edit your home area or destination on the My profile page.",
+      "I did not follow that one, and I would rather say so than guess.\n\n" +
+      "I am good at two things — changing today's travel, and explaining how CityFlow AI works:\n" +
+      "• “I want to leave at 6 PM today”\n" +
+      "• “I need to reach office by 9”\n" +
+      "• “I'm not travelling today”\n" +
+      "• “When should I leave?”\n" +
+      "• “Where do I report a pothole?”\n" +
+      "• “Who can see my data?”\n\n" +
+      "Say “help” for the full list. To change WHERE you travel, edit your home area or destination on the My profile page.",
     proposal: null,
     requiresConfirmation: false,
   };

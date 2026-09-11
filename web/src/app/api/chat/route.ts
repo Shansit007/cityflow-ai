@@ -68,6 +68,8 @@ export async function POST(request: Request) {
           text,
           proposal: null,
           requiresConfirmation: false,
+          // Do not make them hunt for the page they have just been sent to.
+          link: { label: "Set up my travel routine", href: "/onboarding" },
         }),
       ];
 
@@ -129,6 +131,7 @@ export async function POST(request: Request) {
       text: reply.text,
       proposal: reply.proposal,
       requiresConfirmation: reply.requiresConfirmation,
+      link: reply.link,
     });
 
     return NextResponse.json({

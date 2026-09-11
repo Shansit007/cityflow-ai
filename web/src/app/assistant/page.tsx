@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { SaarthiMark } from "@/components/brand/saarthi-mark";
 import { AssistantConsole } from "@/components/chat/assistant-console";
 import { Badge } from "@/components/ui/badge";
 import { Container } from "@/components/ui/container";
@@ -70,7 +71,10 @@ export default async function AssistantPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-secondary">
               CityFlow AI Assistant
             </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-fg">
+            <h1 className="mt-2 flex items-center gap-2.5 text-3xl font-semibold tracking-tight text-fg">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-soft text-primary">
+                <SaarthiMark className="h-5 w-5" />
+              </span>
               {ASSISTANT_NAME}{" "}
               <span className="text-lg font-normal text-muted">· {ASSISTANT_TAGLINE}</span>
             </h1>
@@ -148,14 +152,29 @@ export default async function AssistantPage() {
               <h2 className="text-sm font-semibold text-fg">
                 What {ASSISTANT_NAME} can do
               </h2>
-              <ul className="mt-3 space-y-2 text-xs leading-relaxed text-muted">
+
+              <h3 className="mt-3 text-xs font-semibold uppercase tracking-wider text-subtle">
+                Change today&apos;s travel
+              </h3>
+              <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-muted">
                 <li>Change today&apos;s departure time</li>
                 <li>Work backwards from an arrival time</li>
                 <li>Shift your plan earlier or later</li>
                 <li>Set a limit — &ldquo;not before 8&rdquo;</li>
                 <li>Change today&apos;s transport mode</li>
                 <li>Cancel today&apos;s trip</li>
-                <li>Answer questions about demand</li>
+              </ul>
+
+              <h3 className="mt-4 text-xs font-semibold uppercase tracking-wider text-subtle">
+                Explain CityFlow AI
+              </h3>
+              <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-muted">
+                <li>Where to find any part of the app</li>
+                <li>How to report a pothole, and who repairs it</li>
+                <li>What the 0&ndash;100 demand number means</li>
+                <li>Who can see your data, and what stays private</li>
+                <li>Why you were given a particular time</li>
+                <li>What is not built yet, honestly</li>
               </ul>
 
               <h3 className="mt-4 text-xs font-semibold text-fg">What it cannot do</h3>
@@ -169,9 +188,10 @@ export default async function AssistantPage() {
               </p>
 
               <p className="mt-4 text-xs leading-relaxed text-subtle">
-                {ASSISTANT_NAME} recognises travel sentences using fixed rules, not a language
-                model. That makes it free to run, predictable, and able to show you exactly
-                what it understood — but it does not chat about anything else.
+                {ASSISTANT_NAME} recognises sentences using fixed rules, not a language model.
+                That makes it free to run, predictable, and able to show you exactly what it
+                understood — but it is not a general chatbot, and it will say so rather than
+                inventing an answer.
               </p>
             </div>
           </aside>

@@ -3,46 +3,69 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { ASSISTANT_NAME } from "@/lib/chat/branding";
+import { SaarthiMark } from "@/components/brand/saarthi-mark";
+import { ASSISTANT_NAME, ASSISTANT_TAGLINE } from "@/lib/chat/branding";
 
 /**
- * A quick way into the assistant from anywhere in the commuter portal.
+ * Saarthi, reachable from every page.
  *
- * It is a LINK to the assistant page, not a popup. The conversation is a real
- * part of the product with its own history, so it gets a real page — this is
- * just the shortcut to it.
+ * WHY A SMALL CIRCLE RATHER THAN THE WIDE PILL IT USED TO BE
+ * A button that is present on every screen has to earn very little space. The
+ * previous version was a full "Ask Saarthi" pill, which was fine on a laptop
+ * and sat on top of content on a phone — exactly where it is most likely to be
+ * needed and least likely to be welcome covering something. So: a compact
+ * circle, with the name appearing beside it only where there is room for it.
  *
- * It hides itself on the assistant page (where it would be pointing at the page
- * you are already on) and on the onboarding flow (where a floating button would
- * sit on top of the form).
+ * It is a LINK to the assistant page, not a popup. The conversation has real
+ * history and real decisions in it, so it gets a real page with its own URL
+ * that can be bookmarked, shared and returned to.
+ *
+ * WHERE IT DOES NOT APPEAR
+ *  - /assistant, because it would point at the page you are already reading
+ *  - /admin, because the Admin Portal is a separate part of the product and
+ *    must never carry commuter chrome
+ *
+ * It DOES appear during onboarding, deliberately: that is the moment somebody
+ * is most likely to have a question about what any of this means.
  */
 
-const HIDDEN_ON = ["/assistant", "/onboarding", "/admin"];
+const HIDDEN_ON = ["/assistant", "/admin"];
 
 export function AssistantLauncher() {
   const pathname = usePathname();
 
-  if (HIDDEN_ON.some((path) => pathname.startsWith(path))) return null;
+  if (HIDDEN_ON.some((path) => pathname === path || pathname.startsWith(`${path}/`))) {
+    return null;
+  }
 
   return (
     <Link
       href="/assistant"
-      className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2.5 rounded-full bg-primary px-5 py-3.5 text-sm font-semibold text-on-primary shadow-float transition-transform hover:scale-[1.03]"
+      /*
+        `group` drives the label reveal. `sm:` keeps the bare circle on phones,
+        where horizontal space is scarcest and a growing pill would be most
+        likely to cover something the person is trying to read.
+      */
+      className="group fixed bottom-4 right-4 z-40 inline-flex h-12 items-center gap-2.5 rounded-full bg-primary px-3.5 text-on-primary shadow-float transition-all hover:px-4 focus-visible:px-4 sm:bottom-5 sm:right-5"
+      title={`Ask ${ASSISTANT_NAME} — ${ASSISTANT_TAGLINE}`}
     >
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+      <SaarthiMark className="h-5 w-5 shrink-0" />
+
+      {/*
+        The name is always in the accessible name of the link, so a screen
+        reader announces "Ask Saarthi, your travel guide" whether or not the
+        text is visible. Only its VISIBILITY is responsive.
+      */}
+      <span className="sr-only-cf">
+        Ask {ASSISTANT_NAME}, {ASSISTANT_TAGLINE}
+      </span>
+
+      <span
         aria-hidden="true"
+        className="hidden text-sm font-semibold sm:inline"
       >
-        <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 21l1.9-5A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z" />
-      </svg>
-      Ask {ASSISTANT_NAME}
+        {ASSISTANT_NAME}
+      </span>
     </Link>
   );
 }

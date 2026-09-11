@@ -413,6 +413,13 @@ model ChatMessage {
   /// which would otherwise have moved on.
   proposal Json?
 
+  /// A "take me there" link shown under an answer, e.g. {label, href}.
+  ///
+  /// Stored rather than recomputed because the answer it belongs to is stored.
+  /// Re-deriving it on every read would mean the transcript could silently
+  /// start pointing somewhere the original answer never did.
+  link Json?
+
   /// Whether this message was waiting on a Confirm press.
   requiresConfirmation Boolean @default(false)
 

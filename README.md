@@ -53,6 +53,7 @@ CityFlow AI has three separate parts, and they are intentionally kept apart:
 | **3** | AI assistant, travel-intent recognition, confirmed-plan storage, demand aggregation, city-wide re-optimisation | ✅ Complete |
 | **4** | Admin Portal, demand heatmap, reports, system status, SUMO + OpenStreetMap evaluation structure | ✅ Complete |
 | **5** | Road-issue reporting, phone road-impact detection, Municipal Dashboard hand-off, participation, accessibility and security pass | ✅ Complete |
+| **5+** | Saarthi reachable from every page; the assistant now also answers questions about the app itself and links to the right screen | ✅ Complete |
 
 ---
 
@@ -103,6 +104,8 @@ Full instructions, including how to get a free database and how to deploy:
    agree — and even then it is "confirmed by reports", never "verified".
 8. No figure is shown that the system did not actually observe. There is no
    "time saved", because nobody's real journey was measured.
+9. The assistant only describes features that exist. When something is not
+   built, it says so rather than sending someone looking for it.
 
 ---
 

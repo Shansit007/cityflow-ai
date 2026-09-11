@@ -3,6 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import Link from "next/link";
+
+import { SaarthiMark } from "@/components/brand/saarthi-mark";
 import { ProposalCardView } from "@/components/chat/proposal-card";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/input";
@@ -20,13 +23,33 @@ import { cn } from "@/lib/utils";
  * the whole conversation can be deleted from here without touching those plans.
  */
 
-const SUGGESTIONS = [
-  "I want to leave at 6 PM today",
-  "I need to reach office by 9",
-  "I can leave 30 minutes late today",
-  "I don't want to leave before 8",
-  "I want to take the metro",
-  "When should I leave?",
+/*
+  Two groups, because Saarthi does two genuinely different jobs and somebody
+  arriving for the first time has no way of guessing the second one exists.
+  The chips are the cheapest possible way to show it.
+*/
+const SUGGESTION_GROUPS = [
+  {
+    label: "Change today's travel",
+    items: [
+      "I want to leave at 6 PM today",
+      "I need to reach office by 9",
+      "I can leave 30 minutes late today",
+      "I'm not travelling today",
+      "When should I leave?",
+    ],
+  },
+  {
+    label: "Ask about CityFlow AI",
+    items: [
+      "Where do I report a pothole?",
+      "What does the 0-100 number mean?",
+      "Who can see my data?",
+      "Why was I given this time?",
+      "How do I change my usual time?",
+      "Do I get any rewards?",
+    ],
+  },
 ];
 
 interface AssistantConsoleProps {
@@ -207,16 +230,22 @@ export function AssistantConsole({
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
         {messages.length === 0 && (
           <div className="mx-auto max-w-xl py-8 text-center">
+            <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary-soft text-primary">
+              <SaarthiMark className="h-7 w-7" />
+            </span>
+
             <h2 className="text-lg font-semibold text-fg">
               Hello {displayName}, I am {ASSISTANT_NAME}.
             </h2>
             <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted">
-              Tell me about your travel plan for today and I will keep your recommendation up
-              to date — and keep the city&apos;s demand picture honest at the same time.
+              I do two things. I keep your travel plan for today up to date — just tell me in
+              your own words when you are leaving. And I can explain how CityFlow AI works and
+              show you where to find things.
             </p>
             <p className="mx-auto mt-3 max-w-md text-xs leading-relaxed text-subtle">
-              I understand travel sentences rather than open conversation, and I always show
-              you exactly what will be saved before saving it.
+              I match patterns rather than think, so I am not a general chatbot — but I will
+              always tell you when I have not understood, and I never save anything without
+              showing you exactly what it is first.
             </p>
           </div>
         )}
@@ -249,6 +278,20 @@ export function AssistantConsole({
               {message.text}
             </div>
 
+            {/*
+              A "take me there" link. Telling somebody a feature exists and
+              leaving them to find it is only half an answer.
+            */}
+            {message.role === "ASSISTANT" && message.link && (
+              <Link
+                href={message.link.href}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border-strong bg-surface px-3 py-2 text-xs font-medium text-fg transition-colors hover:bg-surface-2"
+              >
+                {message.link.label}
+                <span aria-hidden="true">→</span>
+              </Link>
+            )}
+
             {message.role === "ASSISTANT" && message.proposal && (
               <ProposalCardView
                 proposal={message.proposal}
@@ -263,7 +306,10 @@ export function AssistantConsole({
         ))}
 
         {thinking && (
-          <p className="text-xs text-subtle">{ASSISTANT_NAME} is reading that…</p>
+          <p className="flex items-center gap-2 text-xs text-subtle">
+            <SaarthiMark className="h-3.5 w-3.5 animate-pulse" />
+            {ASSISTANT_NAME} is reading that…
+          </p>
         )}
       </div>
 
@@ -275,16 +321,25 @@ export function AssistantConsole({
 
       {/* ------------------------------------------------------ suggestions */}
       {messages.length === 0 && (
-        <div className="flex flex-wrap gap-2 border-t border-border-base px-4 py-3 sm:px-6">
-          {SUGGESTIONS.map((suggestion) => (
-            <button
-              key={suggestion}
-              type="button"
-              onClick={() => send(suggestion)}
-              className="rounded-full border border-border-base px-3 py-1.5 text-xs text-muted transition-colors hover:bg-surface-2 hover:text-fg"
-            >
-              {suggestion}
-            </button>
+        <div className="space-y-3 border-t border-border-base px-4 py-4 sm:px-6">
+          {SUGGESTION_GROUPS.map((group) => (
+            <div key={group.label}>
+              <p className="mb-2 text-[0.65rem] font-medium uppercase tracking-wider text-subtle">
+                {group.label}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {group.items.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => send(suggestion)}
+                    className="rounded-full border border-border-base px-3 py-1.5 text-xs text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}

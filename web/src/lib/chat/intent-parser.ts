@@ -1,5 +1,11 @@
 import { roundToSlot, toMinutes, toTimeString } from "@/lib/demand/time-slots";
 import { parseShift, parseTime, soundsUncertain } from "@/lib/chat/time-parse";
+import {
+  CONFIDENT_TOPIC_SCORE,
+  WEAK_TOPIC_SCORE,
+  looksLikeAppQuestion,
+  matchTopics,
+} from "@/lib/chat/app-guide";
 import type { TransportMode } from "@/lib/travel";
 
 /**
@@ -50,6 +56,10 @@ export type IntentKind =
   | "ASK_TRAFFIC"
   /** "What can you do?" */
   | "HELP"
+  /** "Where do I report a pothole?" — a question about the app itself. */
+  | "ASK_APP_HELP"
+  /** "Thanks", "ok", "bye" — acknowledge, do not lecture. */
+  | "SMALL_TALK"
   | "GREETING"
   | "UNKNOWN";
 
@@ -81,6 +91,16 @@ export interface ParsedIntent {
   matchedText?: string;
   /** A time the sentence mentioned but that is not itself the proposal. */
   referencedTime?: string;
+  /** For ASK_APP_HELP: which entry in lib/chat/app-guide.ts answers this. */
+  topicId?: string;
+  /**
+   * For UNKNOWN: a topic that ALMOST matched, offered as "did you mean…".
+   * Deliberately separate from `topicId` — a weak match is a guess, and the
+   * reply must present it as one rather than answering as though it were sure.
+   */
+  suggestedTopicId?: string;
+  /** The small-talk flavour, so the reply can be appropriate. */
+  smallTalk?: "thanks" | "affirm" | "farewell";
 }
 
 /** What the parser needs to know about the person to read a sentence correctly. */
@@ -126,6 +146,23 @@ export function parseIntent(rawText: string, context: IntentContext): ParsedInte
   // ------------------------------------------------------------- greeting
   if (/^(hi|hello|hey|namaste|good (morning|afternoon|evening))\b/.test(input)) {
     return { kind: "GREETING", requiresConfirmation: false };
+  }
+
+  // ----------------------------------------------------------- small talk
+  /*
+    "Thanks", "ok", "bye" are not travel instructions and they are not failures
+    to understand either. Before this existed they fell through to UNKNOWN and
+    were answered with a list of example sentences, which reads as though the
+    assistant was not listening. Acknowledging them costs three lines.
+  */
+  if (/^\s*(thanks|thank you|thx|ty|great|perfect|nice|awesome|cool|good job|well done)\b/.test(input)) {
+    return { kind: "SMALL_TALK", smallTalk: "thanks", requiresConfirmation: false };
+  }
+  if (/^\s*(ok|okay|k|sure|fine|right|got it|understood|alright|yes|yeah|yep)\s*[.!]?\s*$/.test(input)) {
+    return { kind: "SMALL_TALK", smallTalk: "affirm", requiresConfirmation: false };
+  }
+  if (/^\s*(bye|goodbye|see you|good night|gn|tata|chalo)\b/.test(input)) {
+    return { kind: "SMALL_TALK", smallTalk: "farewell", requiresConfirmation: false };
   }
 
   // ----------------------------------------------------------------- help
@@ -177,6 +214,50 @@ export function parseIntent(rawText: string, context: IntentContext): ParsedInte
     /^\s*(when|what time)\b.*\?/.test(input)
   ) {
     return { kind: "ASK_RECOMMENDATION", requiresConfirmation: false };
+  }
+
+  /*
+    ----------------------------- QUESTIONS ABOUT THE APP --------------------
+    "Where do I report a pothole?", "what does this 0-100 number mean?", "who
+    can see my data?". These are perfectly reasonable questions that used to
+    fall through to UNKNOWN and get answered with a list of travel sentences.
+
+    ORDER MATTERS HERE, and the two guards below are the whole trick:
+
+      1. The sentence must be SHAPED like a question about the product
+         ("how do I…", "where is…", "what is…"), not like an instruction.
+      2. It must not be a travel question wearing the same clothes. "What is
+         traffic like at 6 PM" and "how does traffic prediction work" both
+         mention traffic; the first carries a clock time and a travel subject,
+         and belongs to ASK_TRAFFIC below. So a message that has BOTH a
+         parseable time AND a travel subject is never treated as an app
+         question.
+
+    ASK_RECOMMENDATION is checked above this, because "when should I leave?"
+    is unambiguous and deserves the real answer rather than a page link.
+  */
+  const topicMatches = matchTopics(input);
+  const bestTopic = topicMatches[0];
+
+  const mentionsTravelSubject =
+    /\b(traffic|busy|congestion|jam|crowded|leave|leaving|depart|reach|arrive|arriving|travel|trip|commute)\b/.test(
+      input
+    );
+  const carriesATime = parseTime(input, reference) !== null;
+  const isTravelQuestionInDisguise = carriesATime && mentionsTravelSubject;
+
+  if (
+    looksLikeAppQuestion(input) &&
+    bestTopic &&
+    bestTopic.score >= CONFIDENT_TOPIC_SCORE &&
+    !isTravelQuestionInDisguise
+  ) {
+    return {
+      kind: "ASK_APP_HELP",
+      topicId: bestTopic.topic.id,
+      requiresConfirmation: false,
+      matchedText: text,
+    };
   }
 
   if (/\b(traffic|busy|congestion|demand|crowded|jam)\b/.test(input)) {
@@ -320,8 +401,15 @@ export function parseIntent(rawText: string, context: IntentContext): ParsedInte
     };
   }
 
-  // A time on its own ("6 PM?") is most likely a departure, but we are guessing.
-  if (departure) {
+  /*
+    A time on its own ("6 PM?") is most likely a departure, but we are guessing.
+
+    Never guess this from a question about the product, though. "What is the
+    0-100 index?" must not become "shall I move you to 1:00?" — answering a
+    question with an unrelated offer to change somebody's travel plan is the
+    kind of thing that makes people stop trusting an assistant entirely.
+  */
+  if (departure && !looksLikeAppQuestion(input)) {
     const slot = roundToSlot(departure.minutes);
     return {
       kind: "SET_DEPARTURE",
@@ -334,5 +422,19 @@ export function parseIntent(rawText: string, context: IntentContext): ParsedInte
     };
   }
 
-  return { kind: "UNKNOWN", requiresConfirmation: false };
+  /*
+    Nothing matched. Before giving up, check whether a topic ALMOST matched —
+    somebody typing "pothole" alone has clearly asked something, and offering
+    "did you mean reporting a road problem?" is far more use than a list of
+    travel sentences. It is offered as a question, never answered as fact,
+    because a weak match is a guess and should look like one.
+  */
+  const weak = topicMatches[0];
+
+  return {
+    kind: "UNKNOWN",
+    requiresConfirmation: false,
+    suggestedTopicId:
+      weak && weak.score >= WEAK_TOPIC_SCORE ? weak.topic.id : undefined,
+  };
 }

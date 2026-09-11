@@ -1,6 +1,6 @@
 import type { ChatMessage } from "@prisma/client";
 
-import type { ProposalCard } from "@/lib/chat/assistant";
+import type { AssistantReply, ProposalCard } from "@/lib/chat/assistant";
 import { prisma } from "@/lib/db";
 
 /**
@@ -23,6 +23,8 @@ export interface ChatMessageView {
   requiresConfirmation: boolean;
   resolved: boolean;
   outcome: string | null;
+  /** An optional "take me there" link rendered under the message. */
+  link: AssistantReply["link"] | null;
   createdAt: string;
 }
 
@@ -39,6 +41,7 @@ export function toView(row: ChatMessage): ChatMessageView {
     requiresConfirmation: row.requiresConfirmation,
     resolved: row.resolved,
     outcome: row.outcome,
+    link: (row.link as unknown as AssistantReply["link"] | null) ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -75,6 +78,7 @@ export async function recordAssistantMessage(args: {
   text: string;
   proposal: ProposalCard | null;
   requiresConfirmation: boolean;
+  link?: AssistantReply["link"];
 }): Promise<ChatMessageView> {
   const row = await prisma.chatMessage.create({
     data: {
@@ -83,6 +87,7 @@ export async function recordAssistantMessage(args: {
       text: args.text,
       // Prisma's Json column rejects `undefined`; null is the empty value.
       proposal: args.proposal ? JSON.parse(JSON.stringify(args.proposal)) : undefined,
+      link: args.link ? JSON.parse(JSON.stringify(args.link)) : undefined,
       requiresConfirmation: args.requiresConfirmation,
       // A message awaiting a Confirm press is not resolved yet.
       resolved: !args.requiresConfirmation,

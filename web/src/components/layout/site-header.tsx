@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { AdminHeader } from "@/components/admin/admin-header";
 import { Logo } from "@/components/brand/logo";
+import { SaarthiMark } from "@/components/brand/saarthi-mark";
 import { ASSISTANT_NAME } from "@/lib/chat/branding";
 import { CitySelector } from "@/components/city/city-selector";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -155,12 +156,13 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
                   href="/assistant"
                   aria-current={pathname.startsWith("/assistant") ? "page" : undefined}
                   className={cn(
-                    "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    "inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     pathname.startsWith("/assistant")
                       ? "bg-primary-soft text-primary"
                       : "text-muted hover:bg-surface-2 hover:text-fg"
                   )}
                 >
+                  <SaarthiMark className="h-4 w-4" />
                   {ASSISTANT_NAME}
                 </Link>
               )}
@@ -264,9 +266,10 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
                   <Link
                     href="/assistant"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
+                    className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
                   >
-                    {ASSISTANT_NAME} · assistant
+                    <SaarthiMark className="h-4 w-4 text-primary" />
+                    {ASSISTANT_NAME} · your travel guide
                   </Link>
                   <Link
                     href="/roads"
