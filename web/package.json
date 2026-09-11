@@ -11,7 +11,12 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
-    "admin:create": "node --env-file=.env scripts/make-admin.mjs"
+    "admin:create": "node --env-file=.env scripts/make-admin.mjs",
+    "demo:seed": "node --env-file=.env scripts/demo-seed.mjs",
+    "demo:clear": "node --env-file=.env scripts/demo-seed.mjs --clear",
+    "demo:check": "node --env-file=.env scripts/demo-check.mjs",
+    "sumo:export": "node --env-file=.env scripts/sumo-export.mjs",
+    "demo:optimise": "node --env-file=.env scripts/reoptimise.mjs"
   },
   "dependencies": {
     "@prisma/client": "6.3.0",

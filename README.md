@@ -26,6 +26,8 @@ Other documentation:
 - [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md) — colours, theming, accessibility rules
 - [docs/04-SUMO-EVALUATION.md](docs/04-SUMO-EVALUATION.md) — how to test the core claim with SUMO
 - [docs/06-MUNICIPAL-HANDOFF.md](docs/06-MUNICIPAL-HANDOFF.md) — what crosses to the Municipal Dashboard, and what does not
+- [docs/07-SAARTHI.md](docs/07-SAARTHI.md) — how the assistant works
+- [docs/09-RESULTS.md](docs/09-RESULTS.md) — **the simulation result, with its limitations**
 
 ---
 
@@ -106,6 +108,23 @@ Full instructions, including how to get a free database and how to deploy:
    "time saved", because nobody's real journey was measured.
 9. The assistant only describes features that exist. When something is not
    built, it says so rather than sending someone looking for it.
+
+---
+
+## Does it work?
+
+In simulation on an OpenStreetMap network of central Bhopal with 436 modelled
+road trips, applying CityFlow AI's recommendations reduced the busiest
+15-minute departure window from **52 to 39 vehicles (−25%)**, with departures
+falling across the whole 08:00–09:45 peak and rising on the earlier shoulder.
+**No new peak formed elsewhere** — which is the difference between smoothing
+demand and relocating congestion.
+
+Mean travel time was unchanged, as expected at a vehicle count well below
+network capacity.
+
+Full method, the reason only 25% of commuters could be moved, a parameter
+sensitivity analysis and every limitation: **[docs/09-RESULTS.md](docs/09-RESULTS.md)**.
 
 ---
 

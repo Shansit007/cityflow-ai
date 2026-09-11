@@ -53,6 +53,33 @@ export interface ReoptimisationSummary {
   considered: number;
   /** How many were actually changed. */
   updated: number;
+  /**
+   * WHY the rest did not move.
+   *
+   * Added because a pass that reports only "11 of 601 changed" is impossible to
+   * act on: it could be a broken engine, an over-strict threshold, a population
+   * with no flexibility, or arrival deadlines blocking every alternative. Those
+   * call for completely different responses, and guessing between them wasted a
+   * whole evening once. The counts below are cheap and make the pass legible.
+   */
+  breakdown: {
+    /** Already committed to a time. Counted as load, never moved. */
+    alreadyCommitted: number;
+    /** No travel routine, so nothing to work from. */
+    noProfile: number;
+    /** Said their departure cannot move at all. */
+    notFlexible: number;
+    /** Flexible, but no slot in their window was enough better to justify it. */
+    noWorthwhileSlot: number;
+    /** Actually moved. */
+    moved: number;
+  };
+  /**
+   * How much better the best alternative was, for flexible people who did NOT
+   * move — the distribution that decides whether MIN_MEANINGFUL_IMPROVEMENT is
+   * set sensibly for this population.
+   */
+  missedByImprovement: { none: number; under4: number; under8: number };
   /** Slots that were at or above capacity before the pass, for reporting. */
   overloadedSlotsBefore: Array<{ minutes: number; label: string; index: number }>;
   /** Slots still at or above capacity afterwards. */
@@ -109,10 +136,6 @@ export async function reoptimiseCity(
 ): Promise<ReoptimisationSummary> {
   const context = await loadDemandContext(cityCode, travelDate, localDate);
 
-  // Start from what people have actually confirmed. These are real commitments.
-  const provisional = new Map(context.tripCounts);
-  const overloadedBefore = findOverloadedSlots(context, provisional);
-
   // Every recommendation for this city and date, with the routine behind it.
   // The stable ordering is what makes the pass reproducible.
   const recommendations = await prisma.recommendation.findMany({
@@ -121,7 +144,43 @@ export async function reoptimiseCity(
     include: { user: { include: { travelProfile: true } } },
   });
 
+  /*
+    ================== MEASURING "BEFORE" LIKE FOR LIKE ======================
+    An earlier version measured the before-state from confirmed trips alone,
+    then measured the after-state from confirmed trips PLUS all 601 people the
+    pass had just placed. Those are not the same population, so the pass always
+    appeared to invent congestion out of nothing — "0 slots over capacity
+    before, 10 after" — which reads as the optimiser doing the precise thing
+    this project exists to avoid.
+
+    It was a measurement artefact, not a behaviour. Both snapshots now count the
+    SAME people: everybody's confirmed trips plus every recommendation. The only
+    difference between them is the times, which is the only difference there
+    should be.
+    ==========================================================================
+  */
+  const currentCounts = new Map(context.tripCounts);
+  for (const recommendation of recommendations) {
+    const slot = roundToSlot(
+      toMinutes(recommendation.chosenDeparture ?? recommendation.recommendedDeparture) ?? 0
+    );
+    currentCounts.set(slot, (currentCounts.get(slot) ?? 0) + 1);
+  }
+  const overloadedBefore = findOverloadedSlots(context, currentCounts);
+
+  // Start from what people have actually confirmed. These are real commitments.
+  const provisional = new Map(context.tripCounts);
+
   let updated = 0;
+  const breakdown = {
+    alreadyCommitted: 0,
+    noProfile: 0,
+    notFlexible: 0,
+    noWorthwhileSlot: 0,
+    moved: 0,
+  };
+  const missedByImprovement = { none: 0, under4: 0, under8: 0 };
+
   const updates: Array<{
     id: string;
     recommendedDeparture: string;
@@ -133,10 +192,14 @@ export async function reoptimiseCity(
 
   for (const recommendation of recommendations) {
     const profile = recommendation.user.travelProfile;
-    if (!profile) continue;
+    if (!profile) {
+      breakdown.noProfile += 1;
+      continue;
+    }
 
     // --- Already committed? Count them as load and leave them alone. --------
     if (recommendation.status !== "PENDING") {
+      breakdown.alreadyCommitted += 1;
       const committedSlot = roundToSlot(
         toMinutes(recommendation.chosenDeparture ?? recommendation.recommendedDeparture) ??
           0
@@ -160,7 +223,35 @@ export async function reoptimiseCity(
     const previous = recommendation.recommendedDeparture;
     const next = engine.recommendedDeparture;
 
+    /*
+      Record why this person stayed put. `suggestsChange` is false either
+      because nothing in their window was better, or because the best thing in
+      it was not better by MIN_MEANINGFUL_IMPROVEMENT. Those are different
+      problems and the distribution below tells them apart.
+    */
+    if (!engine.suggestsChange) {
+      if (!profile.isFlexible) {
+        breakdown.notFlexible += 1;
+      } else {
+        breakdown.noWorthwhileSlot += 1;
+
+        const best = engine.options
+          .filter((option) => option.arrivesInTime)
+          .reduce<number | null>(
+            (lowest, option) =>
+              lowest === null || option.demandIndex < lowest ? option.demandIndex : lowest,
+            null
+          );
+
+        const gap = best === null ? 0 : engine.demandAtUsual - best;
+        if (gap <= 0) missedByImprovement.none += 1;
+        else if (gap < 4) missedByImprovement.under4 += 1;
+        else missedByImprovement.under8 += 1;
+      }
+    }
+
     if (next !== previous) {
+      breakdown.moved += 1;
       updates.push({
         id: recommendation.id,
         recommendedDeparture: next,
@@ -205,6 +296,8 @@ export async function reoptimiseCity(
   return {
     considered: recommendations.length,
     updated,
+    breakdown,
+    missedByImprovement,
     overloadedSlotsBefore: overloadedBefore,
     overloadedSlotsAfter: findOverloadedSlots(context, provisional),
   };

@@ -46,18 +46,50 @@ worth anything.
 
 ## Install SUMO
 
-**macOS:**
+> ⚠️ **Homebrew no longer works for this.** The SUMO project dropped Homebrew
+> support — `brew install --cask sumo-gui` fails with *"No Cask with this name
+> exists"*. The official page now says: *"We no longer maintain the installation
+> via Homebrew."*
+
+### Option A — pip (easiest on macOS, and what this guide assumes)
+
 ```bash
-brew install --cask sumo-gui
+pip install eclipse-sumo
 ```
-or download from <https://sumo.dlr.de/docs/Downloads.php>
+
+Wheels are published for macOS 14+ on Apple Silicon, and the command-line tools
+land on your PATH with the package.
 
 Check it worked:
+
 ```bash
 sumo --version
 netconvert --version
 duarouter --version
 ```
+
+All three must print a version. If `command not found` comes back, the wheel
+installed the Python bindings but not the binaries on your PATH — use Option B.
+
+### Option B — the official installer
+
+1. Download `sumo-<version>.pkg` from <https://sumo.dlr.de/docs/Downloads.php>
+2. Install **XQuartz** first (<https://www.xquartz.org>) — the installer needs it
+3. Run the `.pkg`
+4. Add SUMO to your PATH, e.g. in `~/.zshrc`:
+
+```bash
+export SUMO_HOME="/usr/local/opt/sumo/share/sumo"
+export PATH="$PATH:$SUMO_HOME/bin"
+```
+
+Then `source ~/.zshrc` and check the three `--version` commands above.
+
+### You do not need `sumo-gui`
+
+The graphical version is pleasant for a demo video, but every step in this guide
+uses the command-line `sumo`, which is much faster. Skip the GUI if it gives you
+trouble — it changes nothing about the result.
 
 ---
 

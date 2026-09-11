@@ -214,6 +214,19 @@ function xmlAttr(value: string): string {
  * knowing anything about the road network. `duarouter` resolves the TAZs into
  * real edges using the TAZ file below.
  */
+/*
+  ⚠️ NOTHING IN THE HEADER COMMENT BELOW MAY CONTAIN A DOUBLE HYPHEN.
+
+  XML forbids "--" inside a comment — the sequence is what ends one. An earlier
+  version of this header printed an example command line containing
+  "duarouter ... --taz-files ...", which made every exported file invalid XML.
+  SUMO's own parser and Python's both reject it, so the files were unusable at
+  the very first step of the pipeline.
+
+  It is an easy mistake to make again, because the offending text reads
+  perfectly well to a human. If you add a command-line example here, describe
+  the flags in words rather than writing them out.
+*/
 export function tripsToXml(
   trips: ExportedTrip[],
   scenario: SimulationScenario,
@@ -236,9 +249,9 @@ export function tripsToXml(
     "  Metro, walking and cycling trips are excluded: they are real trips but",
     "  they do not occupy road capacity.",
     "",
-    "  Next step:",
-    "    duarouter -n <net.net.xml> --taz-files tazs.add.xml \\",
-    `               -t ${scenario.toLowerCase()}.trips.xml -o ${scenario.toLowerCase()}.rou.xml`,
+    "  Next step: route this file with duarouter, passing the network, the",
+    "  zone file and this file. See docs/04-SUMO-EVALUATION.md, or just run",
+    "  web/scripts/sumo/run-comparison.sh which does the whole pipeline.",
     "-->",
     "<routes>",
     '  <vType id="passenger" vClass="passenger" />',
