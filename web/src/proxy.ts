@@ -26,6 +26,8 @@ const PROTECTED_PREFIXES = [
   "/profile",
   "/onboarding",
   "/assistant",
+  "/roads",
+  "/participation",
 ];
 
 /** Pages that a signed-in user should not see again (they would be confusing). */
@@ -65,6 +67,23 @@ export async function proxy(request: NextRequest) {
   // 2. Already signed in, opening login/signup -> send them to the dashboard.
   if (isSignedIn && startsWithAny(pathname, AUTH_ONLY_PREFIXES)) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  // 3. The Admin Portal. This is the fast edge check on the role carried in the
+  //    signed cookie; lib/auth/admin.ts re-checks against the database inside
+  //    every admin page and API route.
+  if (startsWithAny(pathname, ADMIN_PREFIXES)) {
+    if (!isSignedIn) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("next", `${pathname}${search}`);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    if (session.role !== "ADMIN") {
+      // Not an error page: a commuter who lands here has done nothing wrong and
+      // should simply end up where they belong.
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
   }
 
   return NextResponse.next();

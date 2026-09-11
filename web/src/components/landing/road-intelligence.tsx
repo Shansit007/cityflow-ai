@@ -13,11 +13,11 @@ import { SectionHeading } from "@/components/ui/section-heading";
  */
 
 const PIPELINE = [
-  { step: "Smartphone sensors", detail: "Accelerometer and gyroscope readings while travelling" },
+  { step: "Smartphone sensors", detail: "Accelerometer readings while travelling, in the browser — no app to install" },
   { step: "Possible road impact", detail: "An unusual movement pattern is detected" },
-  { step: "Location association", detail: "The impact is matched to a road segment" },
+  { step: "Location association", detail: "The impact is merged with other reports in the same ~50 m area" },
   { step: "Repeated detections", detail: "Several reports at the same place raise confidence" },
-  { step: "Priority", detail: "A confidence and priority level is assigned" },
+  { step: "Priority", detail: "Ranked by evidence, severity, and how many trips pass through" },
   { step: "Municipal system", detail: "Inspection, repair and status update happen there" },
 ];
 
@@ -33,7 +33,7 @@ export function RoadIntelligence() {
             <SectionHeading
               eyebrow="Road condition intelligence"
               title="Rough roads slow a city down too"
-              description="A journey is not only shaped by how many vehicles are on the road, but by the condition of the road itself. CityFlow AI can use ordinary smartphone motion sensors to flag places that may need attention."
+              description="A journey is not only shaped by how many vehicles are on the road, but by the condition of the road itself. CityFlow AI uses ordinary smartphone motion sensors, and reports from people who travel a road every day, to flag places that may need attention."
             />
 
             <div className="mt-6 rounded-card border border-border-base bg-surface-2 p-5">
@@ -46,6 +46,10 @@ export function RoadIntelligence() {
                 <li>
                   Repeated detections at one location raise confidence — a single reading
                   never counts as proof.
+                </li>
+                <li>
+                  Several reports agreeing means &ldquo;confirmed by reports&rdquo; — which is
+                  not the same as verified, because nobody has been to look.
                 </li>
                 <li>
                   Inspection and repair are handled by the existing municipal system, not by

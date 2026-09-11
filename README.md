@@ -24,6 +24,8 @@ Other documentation:
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how the system is put together
 - [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md) — colours, theming, accessibility rules
+- [docs/04-SUMO-EVALUATION.md](docs/04-SUMO-EVALUATION.md) — how to test the core claim with SUMO
+- [docs/06-MUNICIPAL-HANDOFF.md](docs/06-MUNICIPAL-HANDOFF.md) — what crosses to the Municipal Dashboard, and what does not
 
 ---
 
@@ -50,7 +52,7 @@ CityFlow AI has three separate parts, and they are intentionally kept apart:
 | **2** | Travel-routine onboarding, demand model + recommendation engine, commuter dashboard, Leaflet map, profile editing | ✅ Complete |
 | **3** | AI assistant, travel-intent recognition, confirmed-plan storage, demand aggregation, city-wide re-optimisation | ✅ Complete |
 | **4** | Admin Portal, demand heatmap, reports, system status, SUMO + OpenStreetMap evaluation structure | ✅ Complete |
-| 5 | Road-impact detection, participation, final polish and security review | ⏳ Not started |
+| **5** | Road-issue reporting, phone road-impact detection, Municipal Dashboard hand-off, participation, accessibility and security pass | ✅ Complete |
 
 ---
 
@@ -66,6 +68,7 @@ CityFlow AI has three separate parts, and they are intentionally kept apart:
 | Hosting | Vercel (Hobby plan) |
 | Maps *(Phase 2)* | Leaflet + OpenStreetMap |
 | Simulation *(Phase 4)* | SUMO + OpenStreetMap road network |
+| Road sensing *(Phase 5)* | Browser DeviceMotion + Geolocation APIs — no app, no SDK |
 
 ---
 
@@ -96,6 +99,10 @@ Full instructions, including how to get a free database and how to deploy:
    **CityFlow ID** carries travel behaviour instead.
 6. The Municipal Dashboard is separate and does **not** control traffic
    recommendations.
+7. A detected road impact is a **possible** issue until independent reports
+   agree — and even then it is "confirmed by reports", never "verified".
+8. No figure is shown that the system did not actually observe. There is no
+   "time saved", because nobody's real journey was measured.
 
 ---
 

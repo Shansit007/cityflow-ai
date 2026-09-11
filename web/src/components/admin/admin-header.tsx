@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 const ADMIN_LINKS = [
   { href: "/admin", label: "Overview", exact: true },
   { href: "/admin/demand", label: "Demand" },
+  { href: "/admin/roads", label: "Road conditions" },
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/simulation", label: "Simulation" },
 ];

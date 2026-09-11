@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
 import { loadCityOverview, loadZoneDemand } from "@/lib/admin/analytics";
+import { countRoadIssues } from "@/lib/roads/road-service";
 import { formatAppDate } from "@/lib/app-time";
 import { getCity } from "@/lib/cities";
 
@@ -17,9 +18,10 @@ export const metadata: Metadata = { title: "Reports" };
  * Each report is a CSV download built from the same aggregation functions the
  * portal displays, so a downloaded file can never disagree with the screen.
  *
- * The road-condition report is listed even though it has no data yet, and says
- * so. Hiding it would leave an operator wondering whether it exists; a silently
- * empty file would leave them wondering whether it is broken.
+ * A report with no data is still listed, marked "No data yet", and its CSV
+ * explains why it is empty. Hiding it would leave an operator wondering whether
+ * it exists; a silently blank file would leave them wondering whether it is
+ * broken.
  */
 
 const REPORTS = [
@@ -59,10 +61,12 @@ const REPORTS = [
   },
   {
     id: "road-conditions",
-    title: "Road-condition data availability",
+    title: "Road conditions",
     description:
-      "Smartphone road-impact detection is built in Phase 5. This report currently explains that no data exists yet.",
-    available: false,
+      "Possible road issues reported by citizens and detected by phone sensors, with evidence strength and suggested priority. Places and counts only — never who reported them.",
+    // Availability depends on whether anybody has reported anything, so it is
+    // decided below rather than hard-coded here.
+    available: null,
   },
 ] as const;
 
@@ -74,9 +78,10 @@ export default async function AdminReportsPage({
   const params = await searchParams;
   const city = getCity(params.city);
 
-  const [overview, zones] = await Promise.all([
+  const [overview, zones, roadIssueCount] = await Promise.all([
     loadCityOverview(city.code),
     loadZoneDemand(city.code),
+    countRoadIssues(city.code),
   ]);
 
   return (
@@ -114,18 +119,24 @@ export default async function AdminReportsPage({
             detail="Generated for today"
           />
           <StatTile
-            label="Routines"
-            value={String(overview.participation.withRoutine)}
-            detail={`${overview.participation.sharingDemand} counted in city figures`}
+            label="Road issues"
+            value={String(roadIssueCount)}
+            detail="Places reported in this city"
           />
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {REPORTS.map((report) => (
+          {REPORTS.map((report) => {
+            // `available: null` means "it depends on the data" — today that is
+            // only the road-conditions report.
+            const available =
+              report.available === null ? roadIssueCount > 0 : report.available;
+
+            return (
             <Card key={report.id}>
               <div className="flex items-start justify-between gap-3">
                 <h2 className="text-base font-semibold text-fg">{report.title}</h2>
-                {report.available ? (
+                {available ? (
                   <Badge tone="low">Available</Badge>
                 ) : (
                   <Badge tone="moderate">No data yet</Badge>
@@ -155,7 +166,8 @@ export default async function AdminReportsPage({
                 Download CSV
               </a>
             </Card>
-          ))}
+            );
+          })}
         </div>
 
         <Card className="mt-6">

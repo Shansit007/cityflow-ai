@@ -10,6 +10,8 @@ import {
 import { appDateKey } from "@/lib/app-time";
 import { getCity, isCityCode } from "@/lib/cities";
 import { formatSlotLabel, toTimeString } from "@/lib/demand/time-slots";
+import { loadRoadConditionSummary } from "@/lib/roads/road-service";
+import { CONFIDENCE_META, issueTypeLabel, severityLabel } from "@/lib/roads/types";
 
 /**
  * GET /api/admin/export?report=<type>&city=<code>
@@ -173,23 +175,67 @@ export async function GET(request: Request) {
 
       case "road-conditions": {
         /*
-          Road-impact detection is built in Phase 5. Rather than omit the report
-          or return an empty file with no explanation, the export says exactly
-          why it is empty — an operator downloading this should not be left
-          wondering whether the pipeline is broken.
+          Aggregated possible road issues. Counts, places and categories only —
+          no reporter identity, exactly like every other report here.
+
+          When there is nothing to report the file says WHY rather than being
+          blank, because an operator opening an empty CSV cannot tell "no
+          problems reported" from "the pipeline is broken".
         */
+        const summary = await loadRoadConditionSummary(city.code);
+
+        if (summary.totalIssues === 0) {
+          csv = toCsv(
+            ["status", "detail"],
+            [
+              [
+                "no_data",
+                "No road issues have been reported in this city yet. This is an empty dataset, not a survey result — the roads have not been inspected.",
+              ],
+              [
+                "how_data_arrives",
+                "Citizens report road problems at /roads, and phone motion sensors record possible road impacts during a trip.",
+              ],
+              [
+                "note",
+                "Inspection and repair are handled by the separate Municipal Dashboard, which is not part of this application.",
+              ],
+            ]
+          );
+          break;
+        }
+
         csv = toCsv(
-          ["status", "detail"],
           [
-            [
-              "not_available",
-              "Smartphone road-impact detection is not implemented yet (Phase 5). No road-condition data exists to report.",
-            ],
-            [
-              "note",
-              "Inspection and repair are handled by the separate Municipal Dashboard, which is not part of this application.",
-            ],
-          ]
+            "reference",
+            "area",
+            "location_precision",
+            "issue_type",
+            "reported_severity",
+            "confidence",
+            "independent_reports",
+            "sensor_detections",
+            "priority_score",
+            "priority_band",
+            "first_reported",
+            "last_reported",
+            "handed_over_on",
+          ],
+          summary.priorityList.map((issue) => [
+            `CF-RD-${issue.id.slice(-8).toUpperCase()}`,
+            issue.areaLabel,
+            issue.preciseLocation ? "approximate-gps" : "area-only",
+            issueTypeLabel(issue.issueType),
+            severityLabel(issue.severity),
+            CONFIDENCE_META[issue.confidence].label,
+            issue.reportCount,
+            issue.sensorReportCount,
+            issue.priorityScore,
+            issue.priorityBand,
+            issue.firstReportedAt.toISOString(),
+            issue.lastReportedAt.toISOString(),
+            issue.handedOverAt ? issue.handedOverAt.toISOString() : "not_yet",
+          ])
         );
         break;
       }

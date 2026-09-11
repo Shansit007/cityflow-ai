@@ -6,6 +6,8 @@ import { Card, CardHeader } from "@/components/ui/card";
 import type { DemandSlot } from "@/lib/demand/demand-model";
 import { WEEKDAYS, formatDuration, formatTime } from "@/lib/demand/time-slots";
 import { demandBadgeTone, demandTextClass } from "@/lib/demand/ui";
+import type { RoadIssueView } from "@/lib/roads/road-service";
+import { confidenceMeta, issueTypeLabel } from "@/lib/roads/types";
 import { DESTINATION_TYPES, getTransportMode } from "@/lib/travel";
 
 /**
@@ -122,28 +124,82 @@ function Row({ label, value }: { label: string; value: string }) {
 /**
  * Road conditions near the user.
  *
- * Phase 2 has no road-impact data — smartphone detection is built in Phase 5.
- * Rather than invent a "possible pothole on Main Road", this shows an honest
- * empty state that explains where the data will come from and who acts on it.
+ * Shows the strongest few possible road issues reported in the areas this
+ * person travels between, each with its evidence label in words. Nothing here
+ * is ever described as a confirmed defect — see lib/roads/confidence.ts.
  */
-export function RoadConditionsCard({ area }: { area: string }) {
+export function RoadConditionsCard({
+  area,
+  issues,
+}: {
+  area: string;
+  issues: RoadIssueView[];
+}) {
+  /*
+    Two genuinely different situations, and they must not look the same:
+      - nobody has reported anything here  -> an honest empty state
+      - there are reports                  -> the strongest few, with evidence
+    An empty list is NOT evidence that the roads are fine, and the copy below
+    says so rather than letting silence imply an all-clear.
+  */
+  const top = issues.slice(0, 3);
+
   return (
     <Card>
-      <CardHeader title="Road conditions near you" />
+      <CardHeader
+        title="Road conditions near you"
+        action={
+          <Link
+            href="/roads"
+            className="rounded-md px-2 py-1 text-sm font-medium text-primary underline-offset-2 hover:bg-primary-soft hover:underline"
+          >
+            View all
+          </Link>
+        }
+      />
 
-      <div className="rounded-lg border border-dashed border-border-strong bg-surface-2 p-5 text-center">
-        <p className="text-sm font-medium text-fg">No road reports for {area} yet</p>
-        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">
-          Road-impact detection is not switched on yet. When it is, possible road issues
-          detected from smartphone motion sensors will appear here — and only after several
-          detections at the same place, never from a single reading.
-        </p>
-      </div>
+      {top.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border-strong bg-surface-2 p-5 text-center">
+          <p className="text-sm font-medium text-fg">No road reports for {area} yet</p>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">
+            Nobody using CityFlow AI has reported a problem here. That is not the same as the
+            roads being fine — if you know of one,{" "}
+            <Link href="/roads" className="font-medium text-primary underline underline-offset-2">
+              report it in about thirty seconds
+            </Link>
+            .
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {top.map((issue) => {
+            const meta = confidenceMeta(issue.confidence);
+
+            return (
+              <li
+                key={issue.id}
+                className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-border-base bg-surface-2 p-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-fg">
+                    {issueTypeLabel(issue.issueType)}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted">
+                    {issue.areaLabel} · {issue.reportCount} report
+                    {issue.reportCount === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <Badge tone={meta.tone}>{meta.label}</Badge>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       <p className="mt-4 text-xs leading-relaxed text-subtle">
-        Inspection and repair are handled by the municipal road-maintenance system, which is a
-        separate service. CityFlow AI identifies and prioritises possible issues; it does not
-        carry out repairs or report on their progress.
+        Nothing here has been inspected. CityFlow AI identifies and prioritises possible
+        issues; the municipal road-maintenance team — a separate service — inspects and
+        repairs them.
       </p>
     </Card>
   );

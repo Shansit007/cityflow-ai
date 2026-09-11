@@ -39,15 +39,24 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
   const router = useRouter();
 
   /*
+    ⚠️ HOOKS MUST COME BEFORE THE EARLY RETURN BELOW.
+    React requires every render of a component to call the same hooks in the
+    same order. An earlier version returned <AdminHeader /> above these two
+    useState calls, which meant navigating from /dashboard to /admin rendered
+    fewer hooks than the previous render and crashed the app with "Rendered
+    fewer hooks than expected". Declaring state first costs nothing and makes
+    that class of bug impossible here.
+  */
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  /*
     The Admin Portal has its own chrome. Swapping it in here — rather than
     restructuring the app into route groups — keeps one header component
     responsible for "what does the top of the page look like", and guarantees
     the commuter navigation can never appear on an admin screen.
   */
   if (pathname.startsWith("/admin")) return <AdminHeader />;
-
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -103,6 +112,21 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
                   )}
                 >
                   My dashboard
+                </Link>
+              )}
+
+              {session && (
+                <Link
+                  href="/roads"
+                  aria-current={pathname.startsWith("/roads") ? "page" : undefined}
+                  className={cn(
+                    "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    pathname.startsWith("/roads")
+                      ? "bg-primary-soft text-primary"
+                      : "text-muted hover:bg-surface-2 hover:text-fg"
+                  )}
+                >
+                  Roads
                 </Link>
               )}
 
@@ -243,6 +267,20 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
                     className="rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
                   >
                     {ASSISTANT_NAME} · assistant
+                  </Link>
+                  <Link
+                    href="/roads"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
+                  >
+                    Road conditions
+                  </Link>
+                  <Link
+                    href="/participation"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
+                  >
+                    My participation
                   </Link>
                   <Link
                     href="/profile"

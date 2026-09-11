@@ -5,10 +5,9 @@
 // PHASE 2: TravelProfile (the regular routine) + Recommendation (what we
 //          suggested, what the person actually chose).
 //
-// Still to come:
-//   PHASE 3 — TravelIntention, DemandSlot (aggregated city demand)
-//   PHASE 4 — AdminReport / SimulationRun
-//   PHASE 5 — RoadImpactReport
+// PHASE 3: TravelIntention, DemandSlotAggregate, NetworkEvent, ChatMessage.
+// PHASE 4: SimulationRun (SUMO evaluation).
+// PHASE 5: RoadIssue + RoadIssueReport (road-condition intelligence).
 //
 // After changing anything here, run:   npm run db:push
 // =============================================================================
@@ -65,6 +64,7 @@ model User {
   recommendations  Recommendation[]
   travelIntentions TravelIntention[]
   chatMessages     ChatMessage[]
+  roadIssueReports RoadIssueReport[]
 
   @@index([cityCode])
   @@map("users")
@@ -493,4 +493,182 @@ enum SimulationScenario {
   BASELINE
   /// Departures follow CityFlow AI's recommendations.
   CITYFLOW
+}
+
+// =============================================================================
+// PHASE 5 — road-condition intelligence
+// =============================================================================
+//
+// WHAT THIS PART OF THE SYSTEM IS FOR, AND WHAT IT IS NOT FOR
+//
+// CityFlow AI **identifies and prioritises** possible road problems. It does
+// NOT inspect them, schedule repairs, or track repair progress. That work
+// belongs to the Municipal Dashboard, which is a separate, already-existing
+// system. Nothing in this file models an inspection, a work order, a crew or a
+// repair status, because modelling those here would be quietly taking over a
+// responsibility that is not ours.
+//
+// The hand-off is one direction and one payload: CityFlow AI produces a
+// prioritised list; the Municipal Dashboard consumes it. See
+// docs/06-MUNICIPAL-HANDOFF.md.
+// =============================================================================
+
+/// A possible problem with a specific piece of road.
+///
+/// WHY "POSSIBLE"
+/// Neither a phone's accelerometer nor a single citizen photograph can prove a
+/// pothole exists. A hard jolt can be a speed breaker, a kerb, a dropped phone,
+/// or a genuinely broken surface. So a road issue starts life as REPORTED and
+/// is only described as "possible" — never as a confirmed defect — until enough
+/// independent reports agree. Even then it is "confirmed by multiple reports",
+/// which is a different and weaker claim than "verified by inspection". Only
+/// the municipal authority can make the second claim, and this system never
+/// makes it on their behalf.
+///
+/// MERGING
+/// Reports are merged by `cellKey` (a small geographic grid cell) plus
+/// `issueType`, so twenty people driving over the same pothole produce one
+/// issue with twenty reports, not twenty issues. See lib/roads/cell.ts.
+model RoadIssue {
+  id String @id @default(cuid())
+
+  cityCode String
+
+  /// Normalised area name, the same zone key the demand engine uses, so a road
+  /// issue can be related to how busy that area's roads actually are.
+  zoneKey String
+
+  /// Human-readable area, e.g. "Salt Lake Sector 5".
+  areaLabel String
+
+  /// Approximate location. Optional: a citizen may report an area without
+  /// granting location access, and a report with no coordinates is still useful.
+  lat Float?
+  lng Float?
+
+  /// Grid cell used to merge nearby reports of the same kind. Derived from
+  /// lat/lng where available, otherwise from the zone key.
+  cellKey String
+
+  issueType RoadIssueType
+  severity  RoadIssueSeverity @default(MEDIUM)
+
+  /// How confident we are that something is really there. Derived from
+  /// `reportCount` — never set by hand. See lib/roads/confidence.ts.
+  confidence RoadIssueConfidence @default(POSSIBLE)
+
+  /// Number of INDEPENDENT reports. One person can only raise this once, which
+  /// is what `RoadIssueReport`'s unique constraint enforces.
+  reportCount Int @default(1)
+
+  /// How many of those came from phone motion sensors rather than a person
+  /// filling in the form. Shown to the user, because an automatic detection and
+  /// a deliberate human report are not equally strong evidence.
+  sensorReportCount Int @default(0)
+
+  /// Priority score 0-100 for the municipal hand-off. Combines evidence,
+  /// severity and how many trips actually pass through the area.
+  /// Recomputed whenever a report arrives. See lib/roads/priority.ts.
+  priorityScore Int @default(0)
+
+  /// When this issue was last included in a Municipal Dashboard hand-off file.
+  /// Null means it has never been handed over. This is a RECORD OF TRANSFER,
+  /// not a repair status — CityFlow AI never learns whether it was fixed.
+  handedOverAt DateTime?
+
+  firstReportedAt DateTime @default(now())
+  lastReportedAt  DateTime @default(now())
+
+  reports RoadIssueReport[]
+
+  /// Two reports of the same kind of problem in the same small cell are the
+  /// same problem.
+  @@unique([cellKey, issueType])
+  @@index([cityCode, confidence])
+  @@index([cityCode, priorityScore])
+  @@index([zoneKey])
+  @@map("road_issues")
+}
+
+/// One person's contribution to a road issue.
+///
+/// PRIVACY
+/// `userId` exists for exactly two reasons: so one person cannot inflate an
+/// issue's evidence by reporting it twenty times, and so somebody can see and
+/// withdraw their own reports. It is never selected by any Admin Portal query,
+/// never appears in a CSV export, and never appears in the Municipal Dashboard
+/// hand-off — that payload carries locations and counts, never reporters.
+model RoadIssueReport {
+  id String @id @default(cuid())
+
+  roadIssueId String
+  roadIssue   RoadIssue @relation(fields: [roadIssueId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  source RoadIssueSource
+
+  /// What the person typed. Optional, and absent for sensor detections.
+  description String?
+
+  /// A small photo, stored as a data URL.
+  ///
+  /// HONEST LIMITATION: a database column is not an image store. The browser
+  /// downscales every photo to at most 1000px and re-encodes it as JPEG before
+  /// upload, and the server refuses anything over ~200 KB, which keeps this
+  /// workable on a free Postgres plan. A production deployment would put these
+  /// in object storage and keep a URL here instead. That change touches this
+  /// column and the upload route, and nothing else.
+  photo String?
+
+  /// For sensor detections: the peak vertical acceleration recorded, in m/s².
+  /// Null for human reports. Kept so a detection threshold can be tuned later
+  /// against real data rather than guessed at again.
+  impactMagnitude Float?
+
+  createdAt DateTime @default(now())
+
+  /// One person contributes at most one report per issue.
+  @@unique([roadIssueId, userId])
+  @@index([userId, createdAt])
+  @@map("road_issue_reports")
+}
+
+enum RoadIssueType {
+  POTHOLE
+  BROKEN_SURFACE
+  WATERLOGGING
+  UNMARKED_SPEED_BREAKER
+  DEBRIS_OR_OBSTRUCTION
+  OPEN_MANHOLE
+  POOR_STREET_LIGHTING
+  OTHER
+}
+
+enum RoadIssueSeverity {
+  /// Noticeable, no need to slow down much.
+  LOW
+  /// Everyone slows down or swerves for it.
+  MEDIUM
+  /// Dangerous — likely to damage a vehicle or cause a fall.
+  HIGH
+}
+
+/// How strong the evidence is. Derived from the number of independent reports.
+enum RoadIssueConfidence {
+  /// A single report. Described everywhere in the UI as a "possible road issue".
+  POSSIBLE
+  /// Several independent reports agree.
+  LIKELY
+  /// Many independent reports agree. Still NOT "verified" — only the municipal
+  /// authority can verify a defect by inspecting it.
+  CONFIRMED_BY_REPORTS
+}
+
+enum RoadIssueSource {
+  /// A person filled in the report form.
+  CITIZEN_REPORT
+  /// A phone's motion sensors detected a jolt while travelling.
+  SENSOR_DETECTION
 }

@@ -1,8 +1,6 @@
 # CityFlow AI — Architecture
 
-> Status: **Phases 1–4 complete.** Phase 5 is planned and the folder structure
-> already anticipates them, but their code does not exist yet. Anything marked
-> *(planned)* is not implemented.
+> Status: **Phases 1–5 complete.** Everything described below is implemented.
 
 ---
 
@@ -14,7 +12,7 @@ CityFlow AI has three separate parts. They are deliberately **not** merged.
 |---|---|---|
 | **User / Commuter Portal** | Citizens | This repository, routes `/`, `/dashboard`, `/profile` |
 | **Admin Portal** | The CityFlow AI project team today; possibly a government authority in future | This repository, routes under `/admin` |
-| **Municipal Dashboard** | Municipal road-maintenance staff | **A separate, already-existing system.** Not built here. |
+| **Municipal Dashboard** | Municipal road-maintenance staff | **A separate, already-existing system.** Not built here. Receives a hand-off file from `/api/admin/roads/handoff`. |
 
 ### What the Municipal Dashboard may and may not do
 
@@ -38,6 +36,7 @@ optimisation, demand forecasting, the recommendation engine, or the Admin Portal
 | Hosting | **Vercel** Hobby plan | Free, deploys straight from GitHub |
 | Maps *(Phase 2)* | **Leaflet + OpenStreetMap tiles** | No API key, no billing |
 | Simulation *(Phase 4)* | **SUMO** + OpenStreetMap road network | Open source, runs offline |
+| Road sensing *(Phase 5)* | Browser **DeviceMotion** + **Geolocation** APIs | Works on any modern phone with no app, no SDK and no cost |
 
 ---
 
@@ -65,11 +64,13 @@ cityflow-ai/
         │   ├── layout/       Header and footer
         │   ├── map/          Leaflet map + search, loaded browser-side only
         │   ├── onboarding/   The four-step travel-routine wizard
+        │   ├── roads/        Road-issue form, photo resizing, phone impact detector
         │   ├── profile/      Profile editor (reuses the onboarding steps)
         │   ├── theme/        Light/dark theme provider and toggle
         │   └── ui/           Reusable primitives (Button, Card, Badge, TextField…)
         ├── lib/
         │   ├── admin/        Aggregated analytics + SUMO demand export
+        │   ├── roads/        Road issues: merging, evidence, priority, hand-off
         │   ├── auth/         Password hashing, JWT, session, CityFlow ID generation, admin guard
         │   ├── chat/         Time parsing, intent recognition, assistant replies
         │   ├── demand/       Time slots, baseline model, aggregation, engine, optimiser, zones
@@ -79,6 +80,8 @@ cityflow-ai/
         │   ├── env.ts        Environment variable access
         │   ├── intent-service.ts          Stores a confirmed plan, then re-optimises
         │   ├── recommendation-service.ts  Ties the engine to the database
+        │   ├── participation.ts  What one person has actually contributed
+        │   ├── rate-limit.ts     In-memory ceiling for citizen-content endpoints
         │   ├── travel.ts     Transport modes and destination types
         │   └── validation.ts Zod schemas shared by client and server
         └── proxy.ts          Route protection (runs before pages render;
@@ -244,6 +247,69 @@ Full pipeline, including where each metric comes from in SUMO's output:
 
 ---
 
+## 4f. Road-condition intelligence, and where its authority stops
+
+```
+citizen report  ──┐
+                  ├──▶ merge by ~50 m grid cell + issue type
+phone jolt      ──┘         (lib/roads/cell.ts)
+                                   │
+                       weigh the evidence          human report = 1
+                       (lib/roads/confidence.ts)   phone jolt    = 0.5
+                                   │
+                   POSSIBLE → LIKELY → CONFIRMED_BY_REPORTS
+                                   │
+                       score the priority
+                       (lib/roads/priority.ts)
+                       0.3 evidence + 0.4 severity + 0.3 exposure
+                                   │
+                   Admin Portal → Download hand-off file (JSON)
+                                   │
+                     ══════════ SYSTEM BOUNDARY ══════════
+                                   │
+                       Municipal Dashboard: inspect → repair → status
+```
+
+**What CityFlow AI contributes that a complaints inbox cannot.** It knows how
+many trips pass through each area, so it can distinguish two identical potholes
+— one affecting four hundred people a morning, one affecting twelve. That is
+the `exposure` term, and it is the only justification for a traffic-demand
+system having an opinion about road repairs at all.
+
+**Three deliberate design decisions.**
+
+- *Severity is the maximum anybody reported, not the average.* Nine people
+  calling a pothole minor does not cancel one person whose wheel it broke.
+  Under-stating a hazard is the worse failure.
+- *A phone detection is worth half a human report.* An accelerometer cannot tell
+  a pothole from a speed breaker. Someone who stopped and chose a category has
+  actually looked at it.
+- *One person can raise an issue's evidence exactly once.* Enforced by a unique
+  constraint on `(roadIssueId, userId)`, not by application logic that could be
+  bypassed by a retry.
+
+**What is deliberately absent.** There is no inspect action, no assign, no
+repair status, no due date, no crew — anywhere in this codebase. The only status
+kept is `handedOverAt`, which means *"this appeared in a file we gave them"* and
+nothing more. CityFlow AI is never told whether anything was fixed, so it must
+never display a repair status. See
+[docs/06-MUNICIPAL-HANDOFF.md](06-MUNICIPAL-HANDOFF.md).
+
+---
+
+## 4g. What "participation" is allowed to claim
+
+`/participation` shows only figures the system genuinely observed: days with a
+plan, plans confirmed, how far departures moved, road reports made.
+
+There is no "time saved", no "CO₂ avoided", no "you helped N commuters".
+CityFlow AI does not measure anybody's real journey — the demand figures are
+model output — so every one of those would be invented. Rewards are listed as
+**possible future benefits** with a plain statement that none exists and nothing
+is being earned, because fake points would be worse than no points.
+
+---
+
 ## 5. Privacy model
 
 - `users.email` exists for authentication, recovery and service messages **only**.
@@ -251,6 +317,15 @@ Full pipeline, including where each metric comes from in SUMO's output:
 - The Admin Portal *(Phase 4)* will read **aggregated** figures only —
   "8,200 trips expected between 6:00–6:15 PM", never "CF-8X42K91 is travelling at 6 PM".
 - The session cookie is `httpOnly`, `sameSite=lax`, and `secure` in production.
+- Road reports store `userId` for exactly two reasons: so one person cannot
+  inflate an issue's evidence, and so they can see their own reports. It is
+  never selected by an Admin Portal query, never appears in a CSV export, and
+  never appears in the Municipal Dashboard hand-off.
+- Photos are re-encoded through a canvas in the browser, which strips the
+  camera's embedded GPS metadata. Location is attached only when the person
+  explicitly asks for it.
+- Road sensing sends only the points where a jolt happened — never a track of
+  the journey — and only while the person has it switched on.
 
 ---
 
@@ -261,7 +336,7 @@ Full pipeline, including where each metric comes from in SUMO's output:
 | **2** | Travel-routine onboarding, real commuter dashboard, Leaflet map, profile editing. New tables: `TravelProfile`, `Recommendation` |
 | **3** | ✅ Built: assistant, intent recognition, confirmation flow, `TravelIntention`, `DemandSlotAggregate`, `NetworkEvent`, city-wide re-optimisation |
 | **4** | ✅ Built: Admin Portal at `/admin` with its own chrome and role guard, city overview, zone × slot heatmap, CSV reports, system status, SUMO/OSM demand export and baseline vs CityFlow comparison |
-| **5** | Smartphone road-impact detection, citizen road-issue reporting, hand-off to the existing Municipal Dashboard, participation/rewards, final accessibility and security pass |
+| **5** | ✅ Built: citizen road-issue reporting with in-browser photo resizing, phone motion-sensor road-impact detection, duplicate merging, evidence weighting, exposure-based prioritisation, JSON hand-off to the existing Municipal Dashboard, "My CityFlow participation", rate limiting, edge role check, accessibility pass. New tables: `RoadIssue`, `RoadIssueReport` |
 
 ---
 

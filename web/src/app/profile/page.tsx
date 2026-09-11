@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { CityflowIdCard } from "@/components/auth/cityflow-id-card";
+import { ProfileCompleteness } from "@/components/profile/completeness";
 import { ProfileForm } from "@/components/profile/profile-form";
 import { Container } from "@/components/ui/container";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -24,9 +25,12 @@ export default async function ProfilePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const profile = await prisma.travelProfile.findUnique({
-    where: { userId: user.id },
-  });
+  const [profile, confirmedPlans] = await Promise.all([
+    prisma.travelProfile.findUnique({ where: { userId: user.id } }),
+    prisma.travelIntention.count({
+      where: { userId: user.id, status: "CONFIRMED" },
+    }),
+  ]);
 
   // Nothing to edit yet — send them through onboarding first.
   if (!profile) redirect("/onboarding");
@@ -83,6 +87,18 @@ export default async function ProfilePage() {
             Your email is used only for signing in, account recovery and important service
             messages. It is never used in traffic analysis or shown in city-level reporting.
           </p>
+        </div>
+
+        <div className="mt-4">
+          <ProfileCompleteness
+            hasDisplayName={Boolean(user.displayName)}
+            hasCity={Boolean(user.cityCode)}
+            isFlexible={profile.isFlexible}
+            hasConfirmedPlan={confirmedPlans > 0}
+            hasPreferredModes={profile.preferredModes.length > 0}
+            sharesDemand={profile.shareAggregatedDemand}
+            allowsNotifications={profile.allowNotifications}
+          />
         </div>
 
         <div className="mt-8">

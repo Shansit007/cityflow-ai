@@ -243,3 +243,100 @@ export const simulationRunSchema = z.object({
 });
 
 export type SimulationRunInput = z.infer<typeof simulationRunSchema>;
+
+/* ==========================================================================
+   PHASE 5 — road-condition reporting
+   ========================================================================== */
+
+const roadIssueTypeSchema = z.enum([
+  "POTHOLE",
+  "BROKEN_SURFACE",
+  "WATERLOGGING",
+  "UNMARKED_SPEED_BREAKER",
+  "DEBRIS_OR_OBSTRUCTION",
+  "OPEN_MANHOLE",
+  "POOR_STREET_LIGHTING",
+  "OTHER",
+]);
+
+const roadIssueSeveritySchema = z.enum(["LOW", "MEDIUM", "HIGH"]);
+
+/** Latitude/longitude sanity. Precise bounds live in lib/roads/cell.ts. */
+const latitudeSchema = z.number().min(-90).max(90);
+const longitudeSchema = z.number().min(-180).max(180);
+
+/**
+ * Photo size ceiling.
+ *
+ * The browser downscales to at most 1000px and re-encodes as JPEG before
+ * upload, which normally lands between 40 and 150 KB. 200 KB of image becomes
+ * roughly 270 KB as a base64 data URL, so the string limit is set from that.
+ *
+ * This is a real constraint, not a guess: photos are stored in a Postgres
+ * column on a free plan with a 0.5 GB ceiling, so an unbounded upload would
+ * eventually take the whole application down. A production deployment would put
+ * images in object storage instead — see the comment on the column itself.
+ */
+export const MAX_PHOTO_DATA_URL_LENGTH = 280_000;
+
+const photoSchema = z
+  .string()
+  .max(
+    MAX_PHOTO_DATA_URL_LENGTH,
+    "That photo is too large even after resizing. Please try a different one."
+  )
+  .regex(
+    /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/,
+    "That does not look like an image."
+  );
+
+/** Payload accepted by POST /api/roads/report — one deliberate citizen report. */
+export const roadReportSchema = z.object({
+  areaLabel: areaSchema,
+  issueType: roadIssueTypeSchema,
+  severity: roadIssueSeveritySchema,
+  description: z
+    .string()
+    .trim()
+    .max(500, "Please keep the description under 500 characters")
+    .optional()
+    .or(z.literal("")),
+  photo: photoSchema.optional().or(z.literal("")),
+  lat: latitudeSchema.optional().nullable(),
+  lng: longitudeSchema.optional().nullable(),
+});
+
+export type RoadReportInputSchema = z.infer<typeof roadReportSchema>;
+
+/**
+ * Payload accepted by POST /api/roads/detections — a batch of sensor jolts.
+ *
+ * Batched on purpose. A twenty-minute drive can produce a handful of detections
+ * and the phone may pass through a tunnel or lose signal, so the browser
+ * collects them and sends them at the end of the trip rather than firing a
+ * request per bump.
+ *
+ * A detection with no coordinates is REJECTED here, unlike a citizen report.
+ * The reason: a person typing "Salt Lake Sector 5" is telling us something they
+ * know. A phone that felt a bump but has no idea where it was is telling us
+ * nothing usable, and storing it would inflate the evidence for an area on the
+ * basis of no location at all.
+ */
+export const roadDetectionBatchSchema = z.object({
+  detections: z
+    .array(
+      z.object({
+        lat: latitudeSchema,
+        lng: longitudeSchema,
+        /** Peak vertical acceleration, m/s². */
+        magnitude: z.number().min(0).max(200),
+        /** Where the phone thinks it was, reverse-geocoded or the home area. */
+        areaLabel: areaSchema,
+      })
+    )
+    .min(1, "There are no detections to send")
+    // A single trip producing more than this is a sensor fault, not a road.
+    .max(30, "Too many detections in one batch"),
+});
+
+export type RoadDetectionBatchInput = z.infer<typeof roadDetectionBatchSchema>;

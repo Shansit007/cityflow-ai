@@ -21,6 +21,8 @@ import { Notice } from "@/components/ui/input";
 import { appHour, formatAppDate } from "@/lib/app-time";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getCity } from "@/lib/cities";
+import { loadIssuesForUser } from "@/lib/roads/road-service";
+import { confidenceMeta, issueTypeLabel } from "@/lib/roads/types";
 import { DEMAND_LEVEL_LABEL } from "@/lib/demand/demand-model";
 import {
   loadRecommendationHistory,
@@ -65,7 +67,19 @@ export default async function DashboardPage({
 
   if (!today.profile) redirect("/onboarding");
 
-  const history = await loadRecommendationHistory(user.id);
+  /*
+    Road issues on the two areas this person actually travels between. Loaded
+    alongside the history so the dashboard still needs one round of queries.
+  */
+  const [history, roadIssues] = await Promise.all([
+    loadRecommendationHistory(user.id),
+    loadIssuesForUser({
+      userId: user.id,
+      cityCode: city.code,
+      homeArea: today.profile.homeArea,
+      destinationArea: today.profile.destinationArea,
+    }),
+  ]);
 
   const greeting = greetingForHour(appHour());
   const name = user.displayName ?? "there";
@@ -158,7 +172,25 @@ export default async function DashboardPage({
 
         {/* ------------------------------------------------------------ map */}
         <div className="mt-6">
-          <MapPanel demandLevel={today.now.level} demandLabel={today.now.label} />
+          <MapPanel
+            demandLevel={today.now.level}
+            demandLabel={today.now.label}
+            /*
+              Only issues with real coordinates go on the map. An area-only
+              report has no spot to pin, and dropping it at the area's centre
+              would invent a precision the report does not have.
+            */
+            markers={roadIssues
+              .filter((issue) => issue.lat !== null && issue.lng !== null)
+              .map((issue) => ({
+                id: issue.id,
+                lat: issue.lat!,
+                lon: issue.lng!,
+                title: issueTypeLabel(issue.issueType),
+                description: `${confidenceMeta(issue.confidence).label} · ${issue.reportCount} report${issue.reportCount === 1 ? "" : "s"}`,
+                kind: "road-issue" as const,
+              }))}
+          />
         </div>
 
         {/* --------------------------------------------------- routine & co. */}
@@ -168,7 +200,7 @@ export default async function DashboardPage({
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <RoadConditionsCard area={today.profile.homeArea} />
+          <RoadConditionsCard area={today.profile.homeArea} issues={roadIssues} />
           <HistoryCard recommendations={history} />
         </div>
 

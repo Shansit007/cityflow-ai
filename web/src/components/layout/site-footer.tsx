@@ -19,8 +19,9 @@ const FOOTER_SECTIONS = [
     title: "Product",
     links: [
       { href: "/how-it-works", label: "How CityFlow AI works" },
+      { href: "/roads", label: "Report a road issue" },
+      { href: "/participation", label: "My participation" },
       { href: "/signup", label: "Create an account" },
-      { href: "/login", label: "Log in" },
     ],
   },
   {

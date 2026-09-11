@@ -427,15 +427,16 @@ export async function loadSystemHealth(
   }
   const responseMs = Date.now() - startedAt;
 
-  const [aggregateRows, optimisedToday, eventsActive, roadReports] = await Promise.all([
-    prisma.demandSlotAggregate.count({ where: { cityCode, travelDate } }),
-    prisma.recommendation.count({
-      where: { cityCode, travelDate, updatedByOptimiser: true },
-    }),
-    prisma.networkEvent.count({ where: { cityCode, eventDate: travelDate, active: true } }),
-    // Phase 5 will add road-impact reports. Until then this is honestly zero.
-    Promise.resolve(0),
-  ]);
+  const [aggregateRows, optimisedToday, eventsActive, roadIssues, roadHandedOver] =
+    await Promise.all([
+      prisma.demandSlotAggregate.count({ where: { cityCode, travelDate } }),
+      prisma.recommendation.count({
+        where: { cityCode, travelDate, updatedByOptimiser: true },
+      }),
+      prisma.networkEvent.count({ where: { cityCode, eventDate: travelDate, active: true } }),
+      prisma.roadIssue.count({ where: { cityCode } }),
+      prisma.roadIssue.count({ where: { cityCode, handedOverAt: { not: null } } }),
+    ]);
 
   return {
     database: { ok: databaseOk, responseMs },
@@ -471,8 +472,17 @@ export async function loadSystemHealth(
       },
       {
         name: "Road-condition data",
+        status: roadIssues > 0 ? "ok" : "idle",
+        detail:
+          roadIssues > 0
+            ? `${roadIssues} place${roadIssues === 1 ? "" : "s"} reported; ${roadHandedOver} passed to the municipal team`
+            : "Reporting and phone-sensor detection are live, but nobody has reported a road issue in this city yet",
+      },
+      {
+        name: "Municipal Dashboard hand-off",
         status: "not-connected",
-        detail: `Smartphone road-impact detection is not built yet (${roadReports} reports)`,
+        detail:
+          "The Municipal Dashboard is a separate system with no API available to us. Hand-off is a downloadable JSON file an operator transfers by hand.",
       },
       {
         name: "Notifications",
