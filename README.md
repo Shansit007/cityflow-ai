@@ -1,6 +1,6 @@
 # CityFlow AI
 
-### Smarter Departures, Smoother Journeys
+### Smarter Departures, Smoother Journeys....
 
 CityFlow AI is a **proactive** traffic-management system.
 
