@@ -3,11 +3,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { hashRecoveryCode } from "@/lib/recovery";
 import { issueSession } from "@/lib/session";
-import {
-  CITY_CODE_PATTERN,
-  isValidCityId,
-  isValidRecoveryCode,
-} from "@/lib/city-id";
+import { CITY_CODE_PATTERN, isValidCityId, isValidRecoveryCode } from "@/lib/city-id";
 
 const UNIQUE_VIOLATION = "23505";
 
@@ -39,7 +35,10 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const parsed = parse(body);
   if (!parsed) {
-    return NextResponse.json({ error: "Malformed City ID or recovery code." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Malformed City ID or recovery code." },
+      { status: 400 },
+    );
   }
 
   const recoveryHash = await hashRecoveryCode(parsed.recoveryCode);

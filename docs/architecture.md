@@ -58,13 +58,13 @@ Steps 3 and 4 are Phase 2 work. Steps 1 and 2 are what Phase 1 built the schema 
 
 ## What runs where
 
-| | Local | Deployed |
-|---|---|---|
-| `apps/traveller` | `pnpm dev`, port 3000 | Vercel, root directory `apps/traveller` |
-| `apps/municipal` | `pnpm dev`, port 3001 | Vercel, root directory `apps/municipal` |
-| `services/engine` | `uvicorn app.main:app` | Render free tier |
-| Postgres + PostGIS | `docker compose -f infra/docker-compose.yml up` | Supabase or Neon |
-| OSRM | docker compose, `routing` profile | not deployed; travel times come from the model |
+|                    | Local                                           | Deployed                                       |
+| ------------------ | ----------------------------------------------- | ---------------------------------------------- |
+| `apps/traveller`   | `pnpm dev`, port 3000                           | Vercel, root directory `apps/traveller`        |
+| `apps/municipal`   | `pnpm dev`, port 3001                           | Vercel, root directory `apps/municipal`        |
+| `services/engine`  | `uvicorn app.main:app`                          | Render free tier                               |
+| Postgres + PostGIS | `docker compose -f infra/docker-compose.yml up` | Supabase or Neon                               |
+| OSRM               | docker compose, `routing` profile               | not deployed; travel times come from the model |
 
 The engine's free tier sleeps when idle, so `@cityflow/api-client` allows eight seconds
 for a cold start before giving up.

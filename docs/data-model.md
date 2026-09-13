@@ -5,18 +5,18 @@ PostGIS; every table is created in `0001_init.sql`.
 
 ## Tables
 
-| Table | Holds | Keyed by |
-|---|---|---|
-| `cities` | Deployment cities, their centroid and timezone | `code` (`BLR`, `PNQ`) |
-| `city_identities` | The anonymous account | `public_id` |
-| `road_segments` | OSM ways with lane count, length and derived capacity | `(city, osm_way_id)` |
-| `routines` | A recurring journey a traveller saved | `identity_id` |
-| `trips` | One concrete journey, from a routine or ad-hoc | `(city, travel_date)` |
+| Table             | Holds                                                      | Keyed by                     |
+| ----------------- | ---------------------------------------------------------- | ---------------------------- |
+| `cities`          | Deployment cities, their centroid and timezone             | `code` (`BLR`, `PNQ`)        |
+| `city_identities` | The anonymous account                                      | `public_id`                  |
+| `road_segments`   | OSM ways with lane count, length and derived capacity      | `(city, osm_way_id)`         |
+| `routines`        | A recurring journey a traveller saved                      | `identity_id`                |
+| `trips`           | One concrete journey, from a routine or ad-hoc             | `(city, travel_date)`        |
 | `departure_slots` | Per segment, per 15 minutes: capacity and what is using it | `(segment_id, window_start)` |
-| `recommendations` | The slot a trip was given, and the counterfactual | `trip_id` |
-| `defect_reports` | A confirmed road defect awaiting repair | `(city, status, severity)` |
-| `municipal_users` | Named council staff | `(city, email)` |
-| `points_ledger` | Append-only reward points | `identity_id` |
+| `recommendations` | The slot a trip was given, and the counterfactual          | `trip_id`                    |
+| `defect_reports`  | A confirmed road defect awaiting repair                    | `(city, status, severity)`   |
+| `municipal_users` | Named council staff                                        | `(city, email)`              |
+| `points_ledger`   | Append-only reward points                                  | `identity_id`                |
 
 ## Relationships that carry a decision
 

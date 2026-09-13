@@ -39,7 +39,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json(REJECTED, { status: 401 });
   }
 
-  const matches = await verifyRecoveryCode(normaliseRecoveryCode(recoveryCode), row.recovery_hash);
+  const matches = await verifyRecoveryCode(
+    normaliseRecoveryCode(recoveryCode),
+    row.recovery_hash,
+  );
   if (!matches) {
     return NextResponse.json(REJECTED, { status: 401 });
   }

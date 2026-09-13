@@ -19,7 +19,13 @@ describe("recovery code hashing", () => {
 
   it("rejects a stored value that is not a scrypt hash instead of throwing", async () => {
     const code = generateRecoveryCode();
-    for (const stored of ["", "$argon2id$v=19$m=1$x$y", "$scrypt$N=1$onlyfour", "plaintext"]) {
+    for (const stored of [
+      "",
+      "$argon2id$v=19$m=1$x$y",
+      "$scrypt$N=1$onlyfour",
+      "plaintext",
+      "$scrypt$N=16384,r=8,p=1$c2FsdA$",
+    ]) {
       expect(await verifyRecoveryCode(code, stored)).toBe(false);
     }
   });

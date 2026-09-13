@@ -28,10 +28,10 @@ export default async function HomePage() {
 
       <div className="mt-6 max-w-2xl space-y-4 text-[var(--ink-muted)]">
         <p>
-          A road segment jams when more vehicles enter it in a quarter of an hour than
-          it can absorb. Routing tools move traffic around a jam that already exists.
-          CityFlow AI works one step earlier, by spreading departure times so the
-          inflow stays under capacity in the first place.
+          A road segment jams when more vehicles enter it in a quarter of an hour than it
+          can absorb. Routing tools move traffic around a jam that already exists.
+          CityFlow AI works one step earlier, by spreading departure times so the inflow
+          stays under capacity in the first place.
         </p>
         <p>
           Recommendations are advisory. Nothing here restricts when anyone may travel.
