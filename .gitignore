@@ -32,3 +32,6 @@ npm-debug.log*
 
 _to_delete/
 next-env.d.ts
+
+# OSRM extracts and prepared graphs are large and rebuildable.
+infra/osrm/
