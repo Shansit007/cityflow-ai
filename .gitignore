@@ -1,37 +1,34 @@
-# macOS
-.DS_Store
-
-# Node
 node_modules/
+.pnpm-store/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.vercel/
 
-# Environment files — never commit secrets
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
 .env
 .env.local
 .env.*.local
 
-# Editors
+coverage/
+*.log
+npm-debug.log*
+
+.DS_Store
 .idea/
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
 
-# Python (used later for the AI / SUMO services)
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-
-# Build output
-.next/
-out/
-dist/
-build/
-
-# Test and coverage output
-.pytest_cache/
-coverage/
-.jest-cache/
-
-# Logs
-*.log
-npm-debug.log*
+_to_delete/
+next-env.d.ts
