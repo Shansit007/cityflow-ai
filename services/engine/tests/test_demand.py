@@ -6,6 +6,8 @@ from core.fleet import INDIAN_URBAN_PEAK, FleetMix
 from sim.demand import (
     CELL_M,
     FLEXIBILITY_MINUTES,
+    MORNING,
+    Centre,
     Endpoint,
     demand_draw,
     generate,
@@ -217,3 +219,67 @@ def test_demand_and_participation_are_independent() -> None:
 
     share = sum(1 for p in thinned if p.participates(0.2)) / len(thinned)
     assert 0.17 <= share <= 0.23
+
+
+CENTRE = Centre(x=GRID * CELL_M / 2, y=GRID * CELL_M / 2, weight=1.0)
+
+
+def with_centre(count: int = 4000, seed: int = 7):
+    return generate(
+        ENDPOINTS, count=count, seed=seed, fleet=INDIAN_URBAN_PEAK, centres=[CENTRE]
+    )
+
+
+def distance_to_centre(edge: str) -> float:
+    x, y = POSITION[edge]
+    return math.hypot(x - CENTRE.x, y - CENTRE.y)
+
+
+def test_morning_journeys_end_near_the_employment_centre() -> None:
+    morning = [p for p in with_centre() if p.to_work]
+
+    assert morning
+    ends = sum(distance_to_centre(p.destination_edge) for p in morning) / len(morning)
+    starts = sum(distance_to_centre(p.origin_edge) for p in morning) / len(morning)
+
+    assert ends < starts
+
+
+def test_evening_journeys_run_the_other_way() -> None:
+    evening = [p for p in with_centre() if not p.to_work]
+
+    assert evening
+    ends = sum(distance_to_centre(p.destination_edge) for p in evening) / len(evening)
+    starts = sum(distance_to_centre(p.origin_edge) for p in evening) / len(evening)
+
+    assert starts < ends
+
+
+def test_without_centres_journeys_have_no_direction() -> None:
+    # The failure this whole mechanism exists to fix. With destinations spread by
+    # street length alone, a morning trip is as likely to leave the middle of the city
+    # as to arrive there, nothing concentrates, and no segment reaches capacity.
+    people = [p for p in population(count=4000) if p.to_work]
+
+    ends = sum(distance_to_centre(p.destination_edge) for p in people) / len(people)
+    starts = sum(distance_to_centre(p.origin_edge) for p in people) / len(people)
+
+    assert abs(ends - starts) < CELL_M
+
+
+def test_centres_concentrate_destinations() -> None:
+    def concentration(people) -> float:
+        counts: dict[str, int] = {}
+        for person in people:
+            counts[person.destination_edge] = counts.get(person.destination_edge, 0) + 1
+        ordered = sorted(counts.values(), reverse=True)
+        return sum(ordered[: max(1, len(ordered) // 10)]) / len(people)
+
+    assert concentration(with_centre()) > concentration(population(count=4000))
+
+
+def test_the_share_travelling_to_work_matches_the_morning_peak() -> None:
+    people = with_centre(count=20000)
+    share = sum(1 for p in people if p.to_work) / len(people)
+
+    assert abs(share - MORNING.share) < 0.02

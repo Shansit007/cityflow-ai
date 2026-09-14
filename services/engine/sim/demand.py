@@ -90,6 +90,22 @@ CELL_M = 500.0
 # baseline that gridlocked on vehicle-kilometres rather than on peaking.
 DECAY_M = 4500.0
 
+# How far an employment district's pull reaches, in metres. Offices are not a point: a
+# commercial district is a couple of kilometres across and the streets around it absorb
+# its arrivals. Too tight and every journey ends on the same few edges; too loose and
+# the centre stops being a centre.
+CENTRE_RADIUS_M = 1200.0
+
+
+@dataclass(frozen=True)
+class Centre:
+    """An employment district, in the same projected metres as the endpoints."""
+
+    x: float
+    y: float
+    weight: float
+
+
 
 @dataclass(frozen=True)
 class Traveller:
@@ -99,6 +115,7 @@ class Traveller:
     habitual_departure_s: int
     flexibility_minutes: int
     vehicle_type: str
+    to_work: bool
     # A fixed draw in [0, 1) rather than a yes/no flag. Whether this person uses the
     # app is then `draw < adoption`, which makes the 5% cohort a strict subset of the
     # 20% cohort. Re-drawing per level would change who participates as well as how
@@ -121,10 +138,12 @@ class Traveller:
         return self.participates(adoption) and self.flexibility_minutes > 0
 
 
-def _sample_departure(rng: random.Random) -> int:
-    peak = MORNING if rng.random() < MORNING.share else EVENING
+def _sample_departure(rng: random.Random) -> tuple[int, bool]:
+    """Returns the departure second and whether this is a journey towards work."""
+    to_work = rng.random() < MORNING.share
+    peak = MORNING if to_work else EVENING
     drawn = int(rng.gauss(peak.centre_s, peak.spread_s))
-    return max(0, min(DAY_SECONDS - 1, drawn))
+    return max(0, min(DAY_SECONDS - 1, drawn)), to_work
 
 
 def _sample_flexibility(rng: random.Random) -> int:
@@ -138,7 +157,10 @@ class _Cell:
     key: tuple[int, int]
     centre_x: float
     centre_y: float
-    attraction: float
+    # Where people live: street length, as a proxy for built-up density.
+    residential: float
+    # Where people work: street length weighted by nearby employment districts.
+    employment: float
     edges: list[str]
     cumulative_length: list[float]
 
@@ -147,12 +169,13 @@ class _Geography:
     """
     Endpoints bucketed by location, with a cached gravity distribution per origin cell.
 
-    Every trip starting in the same cell faces the same distribution over destinations,
-    so it is built once per origin cell rather than once per trip. With a few hundred
-    occupied cells that turns the dominant cost of generation into a binary search.
+    Every trip starting in the same cell and heading the same way faces the same
+    distribution over destinations, so it is built once per cell and direction rather
+    than once per trip. With a few hundred occupied cells that turns the dominant cost
+    of generation into a binary search.
     """
 
-    def __init__(self, endpoints: list[Endpoint]) -> None:
+    def __init__(self, endpoints: list[Endpoint], centres: list[Centre]) -> None:
         grouped: dict[tuple[int, int], list[Endpoint]] = {}
         for endpoint in endpoints:
             key = (int(endpoint.x // CELL_M), int(endpoint.y // CELL_M))
@@ -162,40 +185,74 @@ class _Geography:
         for key, members in sorted(grouped.items()):
             lengths = [m.length_m for m in members]
             total = sum(lengths)
+            centre_x = (key[0] + 0.5) * CELL_M
+            centre_y = (key[1] + 0.5) * CELL_M
+
             self.cells.append(
                 _Cell(
                     key=key,
-                    centre_x=(key[0] + 0.5) * CELL_M,
-                    centre_y=(key[1] + 0.5) * CELL_M,
-                    # Street length in a cell stands in for how many journeys begin or
-                    # end there. It is a proxy for built-up density, not a land-use
-                    # model: a residential grid and an equally dense office district
-                    # are indistinguishable to it.
-                    attraction=total,
+                    centre_x=centre_x,
+                    centre_y=centre_y,
+                    residential=total,
+                    employment=total * _pull(centre_x, centre_y, centres),
                     edges=[m.edge_id for m in members],
                     cumulative_length=list(accumulate(lengths)),
                 )
             )
 
-        self.origin_cumulative = list(accumulate(c.attraction for c in self.cells))
-        self._destinations: dict[int, list[float]] = {}
+        self._origin: dict[bool, list[float]] = {}
+        self._destination: dict[tuple[int, bool], list[float]] = {}
 
-    def destination_cumulative(self, origin_index: int) -> list[float]:
-        cached = self._destinations.get(origin_index)
+    def _mass(self, cell: _Cell, employment: bool) -> float:
+        return cell.employment if employment else cell.residential
+
+    def origin_cumulative(self, to_work: bool) -> list[float]:
+        """Morning journeys start where people live, evening ones where they work."""
+        cached = self._origin.get(to_work)
+        if cached is None:
+            cached = list(
+                accumulate(self._mass(cell, not to_work) for cell in self.cells)
+            )
+            self._origin[to_work] = cached
+        return cached
+
+    def destination_cumulative(self, origin_index: int, to_work: bool) -> list[float]:
+        cached = self._destination.get((origin_index, to_work))
         if cached is not None:
             return cached
 
         origin = self.cells[origin_index]
         weights: list[float] = []
         for cell in self.cells:
-            dx = cell.centre_x - origin.centre_x
-            dy = cell.centre_y - origin.centre_y
-            distance = math.hypot(dx, dy)
-            weights.append(cell.attraction * math.exp(-distance / DECAY_M))
+            distance = math.hypot(
+                cell.centre_x - origin.centre_x, cell.centre_y - origin.centre_y
+            )
+            weights.append(
+                self._mass(cell, to_work) * math.exp(-distance / DECAY_M)
+            )
 
         cumulative = list(accumulate(weights))
-        self._destinations[origin_index] = cumulative
+        self._destination[(origin_index, to_work)] = cumulative
         return cumulative
+
+
+def _pull(x: float, y: float, centres: list[Centre]) -> float:
+    """
+    How much employment reaches this point, as a multiplier on its street length.
+
+    Returns 1.0 when no centres are given, which makes employment identical to
+    residential and the model directionless. That is the fallback for a city whose
+    districts have not been placed, and it is the reason such a city never congests:
+    journeys scatter evenly and no segment fills.
+    """
+    if not centres:
+        return 1.0
+
+    return sum(
+        centre.weight
+        * math.exp(-math.hypot(x - centre.x, y - centre.y) / CENTRE_RADIUS_M)
+        for centre in centres
+    )
 
 
 def _pick(rng: random.Random, cumulative: list[float]) -> int:
@@ -207,6 +264,7 @@ def generate(
     count: int,
     seed: int,
     fleet: FleetMix,
+    centres: list[Centre] | None = None,
 ) -> list[Traveller]:
     """
     Builds a synthetic travelling population, independent of adoption level.
@@ -221,7 +279,7 @@ def generate(
     if count < 1:
         raise ValueError(f"Trip count must be positive, got {count}.")
 
-    geography = _Geography(endpoints)
+    geography = _Geography(endpoints, centres or [])
     if len(geography.cells) < 2:
         raise ValueError("All endpoints fall in one cell; no journeys to model.")
 
@@ -229,15 +287,17 @@ def generate(
     travellers: list[Traveller] = []
 
     for index in range(count):
-        origin, destination = _distinct_pair(rng, geography)
+        departure, to_work = _sample_departure(rng)
+        origin, destination = _distinct_pair(rng, geography, to_work)
         travellers.append(
             Traveller(
                 trip_id=f"t{index}",
                 origin_edge=origin,
                 destination_edge=destination,
-                habitual_departure_s=_sample_departure(rng),
+                habitual_departure_s=departure,
                 flexibility_minutes=_sample_flexibility(rng),
                 vehicle_type=sample_type(rng, fleet),
+                to_work=to_work,
                 participation_draw=rng.random(),
             )
         )
@@ -245,12 +305,14 @@ def generate(
     return travellers
 
 
-def _distinct_pair(rng: random.Random, geography: _Geography) -> tuple[str, str]:
-    origin_index = _pick(rng, geography.origin_cumulative)
+def _distinct_pair(
+    rng: random.Random, geography: _Geography, to_work: bool
+) -> tuple[str, str]:
+    origin_index = _pick(rng, geography.origin_cumulative(to_work))
     origin_cell = geography.cells[origin_index]
     origin = origin_cell.edges[_pick(rng, origin_cell.cumulative_length)]
 
-    destinations = geography.destination_cumulative(origin_index)
+    destinations = geography.destination_cumulative(origin_index, to_work)
     for _ in range(8):
         cell = geography.cells[_pick(rng, destinations)]
         destination = cell.edges[_pick(rng, cell.cumulative_length)]

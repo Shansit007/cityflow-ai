@@ -8,9 +8,12 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
+from pyproj import Transformer
+
 from app.logging import configure_logging
-from core.cities import get_city
-from sim.demand import Traveller, generate
+from core.cities import City, get_city
+from sim.demand import Centre, Traveller, generate
+from sim.network import utm_epsg
 from sim.trips import (
     DuarouterFailed,
     collect_endpoints,
@@ -41,6 +44,34 @@ def straight_line_stats(
     }
 
 
+def employment_centres(city: City) -> list[Centre]:
+    """The city's districts, projected into the metres the network is built in."""
+    transformer = Transformer.from_crs(
+        "EPSG:4326", utm_epsg(city.centroid_lon, city.centroid_lat), always_xy=True
+    )
+    return [
+        Centre(*transformer.transform(a.lon, a.lat), a.weight)
+        for a in city.attractors
+    ]
+
+
+def destination_concentration(people: list[Traveller]) -> float:
+    """
+    Share of journeys ending on the busiest tenth of destination edges.
+
+    The one number that says whether this city has a centre. Spread by street length
+    alone it sits near 0.1, which is a city where everybody is going somewhere
+    different and no road ever fills.
+    """
+    counts: dict[str, int] = {}
+    for person in people:
+        counts[person.destination_edge] = counts.get(person.destination_edge, 0) + 1
+
+    ordered = sorted(counts.values(), reverse=True)
+    top = ordered[: max(1, len(ordered) // 10)]
+    return sum(top) / len(people)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--city", default="BLR")
@@ -69,8 +100,19 @@ def main() -> int:
         logger.error("too few candidate endpoints to build trips")
         return 1
 
+    centres = employment_centres(city)
+    if not centres:
+        logger.warning(
+            "no employment districts for this city; demand will have no direction",
+            extra={"city": city.code},
+        )
+
     people = generate(
-        endpoints, count=arguments.trips, seed=arguments.seed, fleet=city.fleet
+        endpoints,
+        count=arguments.trips,
+        seed=arguments.seed,
+        fleet=city.fleet,
+        centres=centres,
     )
 
     positions = {e.edge_id: (e.x, e.y) for e in endpoints}
@@ -82,6 +124,8 @@ def main() -> int:
         extra={
             "trips": len(people),
             "fleet": {k: round(v / len(people), 3) for k, v in sorted(drawn.items())},
+            "to_work_share": round(sum(p.to_work for p in people) / len(people), 3),
+            "destination_concentration": round(destination_concentration(people), 3),
             **straight_line_stats(people, positions),
         },
     )

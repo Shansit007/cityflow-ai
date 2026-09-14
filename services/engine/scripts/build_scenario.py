@@ -18,6 +18,7 @@ from sim.network import (
     edge_id,
     run_netconvert,
     summarise,
+    utm_epsg,
     write_edges,
     write_nodes,
 )
@@ -31,13 +32,6 @@ SELECT osm_way_id, from_node, to_node, lanes, highway_class, length_m,
 FROM road_segments
 WHERE city = %s
 """
-
-
-def utm_epsg(longitude: float, latitude: float) -> str:
-    """SUMO works in metres, so geographic coordinates have to be projected first."""
-    zone = int((longitude + 180) // 6) + 1
-    hemisphere = 326 if latitude >= 0 else 327
-    return f"EPSG:{hemisphere}{zone:02d}"
 
 
 def read_segments(

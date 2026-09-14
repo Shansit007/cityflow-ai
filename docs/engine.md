@@ -114,10 +114,39 @@ bucketed into 500 m cells; a journey picks a destination cell with weight
 because a per-edge draw over ~50,000 candidates costs 50,000 operations per trip, and
 the distribution it approximates is the same one.
 
-Street length within a cell stands in for how many journeys start or end there. It is a
-proxy for built-up density and not a land-use model: a residential grid and an equally
-dense office district look identical to it, so the model produces no directional
-morning tide into a centre. That is a real limitation of the result and not a detail.
+### Journeys have a direction
+
+Street length within a cell stands in for how many people live there. It says nothing
+about where they work, and a first version used it for both ends of the journey. That
+produced a city with no centre: origins and destinations spread identically, journeys
+scattered across the whole extract, and the busiest segment in the busiest quarter of
+an hour reached a fraction of its capacity. A departure-time allocator has nothing to
+do in a city that never fills up, and three consecutive baselines measured exactly
+that.
+
+Real cities congest because of structure, not volume. People leave a dispersed
+periphery and converge on a few employment districts along a few radial arterials,
+which saturate while the residential grid stays empty.
+
+So `core/cities.py` carries the city's employment districts, and a cell's attraction as
+a *destination* is its street length weighted by how much employment reaches it:
+
+```
+employment(cell) = street_length(cell) x Σ_districts weight x exp(-distance / 1200 m)
+```
+
+A morning journey draws its origin from residential mass and its destination from
+employment mass; an evening journey reverses both. The 1200 m radius is the size of a
+commercial district rather than a point, because the streets around an office area
+absorb its arrivals.
+
+The districts are the approximate centroids of Bengaluru's main commercial areas —
+MG Road, Koramangala, Indiranagar, Domlur, Rajajinagar, Jayanagar — placed from their
+well-known locations and weighted by relative pull, not from an employment survey.
+Whitefield and Electronic City are the city's two largest employment centres and both
+fall outside this extract, so the tide modelled here is the one into the central
+districts only. A city with no districts listed falls back to street length at both
+ends, and will not congest.
 
 On the Bengaluru extract the 4.5 km decay gives a mean straight-line journey of 4.97 km
 (median 4.42, p90 9.48), which is 8.2 km by road as routed.
@@ -129,8 +158,12 @@ congests without breaking down, since a network that never exceeds capacity give
 departure-time allocator nothing to do and one that gridlocks cannot be measured at
 all. `run_baseline.py --demand-share` thins the routed population at run time, keyed on
 a stable hash of the trip id, so finding that level costs a simulation rather than a
-re-route. Levels nest: lowering the share removes travellers and never substitutes
-them, so two runs at different levels differ only in how many people are on the road.
+re-route. `run_allocation.py` reports, in about ten seconds and without simulating
+anything, how many segment-windows the untouched departures push over capacity. That
+is the question a demand level is chosen to answer, and a far more direct one than
+whether mean delay looks high enough. Levels nest: lowering the share removes
+travellers and never substitutes them, so two runs at different levels differ only in
+how many people are on the road.
 
 Every result records the share it was produced at. A delay figure without one is not a
 figure.
