@@ -193,27 +193,28 @@ def count_routes(routes: Path) -> int:
     return total
 
 
-def filter_routes(source: Path, destination: Path, keep: set[str]) -> int:
+def filter_routes(
+    source: Path, destination: Path, keep: set[str], fleet: FleetMix
+) -> int:
     """
-    Writes out only the vehicles in `keep`, preserving their routes and vehicle types.
+    Writes out only the vehicles in `keep`, preserving their routes.
 
     The measured cohort is fixed by habitual departure and stays the same in every run
     of a comparison. Selecting instead by whether a trip happened to finish inside a
     simulated window would let the allocator change the cohort by moving people across
     the boundary, and the runs would no longer be measuring the same population.
 
-    vType elements are carried over because a vehicle referring to a type the document
-    does not declare is an error SUMO raises at load, after the several minutes it
-    takes to read the network.
+    Vehicle types are re-emitted from the current definitions rather than copied from
+    the routed file. Routing takes four minutes and only depends on a type's vClass,
+    so inheriting the rest would mean re-routing 50,000 journeys to change a braking
+    parameter. The cohort file is rebuilt on every run anyway.
     """
     root = ET.Element("routes")
+    write_vtypes(root, fleet)
     written = 0
 
     for _, element in ET.iterparse(source, events=("end",)):
-        if element.tag == "vType":
-            root.append(_copy(element))
-            element.clear()
-        elif element.tag == "vehicle":
+        if element.tag == "vehicle":
             if element.get("id", "") in keep:
                 root.append(_copy(element))
                 written += 1

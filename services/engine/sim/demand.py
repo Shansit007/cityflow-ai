@@ -1,3 +1,4 @@
+import hashlib
 import math
 import random
 from bisect import bisect_right
@@ -9,6 +10,26 @@ from sim.vehicles import sample_type
 
 SECONDS_PER_MINUTE = 60
 DAY_SECONDS = 24 * 60 * 60
+
+
+def demand_draw(trip_id: str) -> float:
+    """
+    A stable number in [0, 1) per traveller, used to thin the population to a chosen
+    demand level without routing it again.
+
+    Routing 100,000 journeys takes four minutes and does not depend on how many of
+    them are simulated, so the level at which the network congests is found by
+    dropping travellers at run time rather than by regenerating. Derived from the trip
+    id by hashing rather than from an RNG so that the same share always keeps the same
+    people, across processes and across Python versions: a baseline and the allocator
+    run it is compared against must contain exactly the same population.
+
+    Deliberately independent of participation_draw. Whether a journey happens and
+    whether its traveller uses the app are different questions, and tying them would
+    make the adoption sweep vary demand as a side effect.
+    """
+    digest = hashlib.blake2b(trip_id.encode(), digest_size=8).digest()
+    return int.from_bytes(digest, "big") / 2**64
 
 
 @dataclass(frozen=True)

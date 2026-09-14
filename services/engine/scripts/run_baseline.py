@@ -8,7 +8,13 @@ from pathlib import Path
 
 from app.logging import configure_logging
 from core.cities import get_city
-from sim.runner import MAX_TELEPORT_SHARE, SumoFailed, read_metrics, run_sumo
+from sim.demand import demand_draw
+from sim.runner import (
+    MAX_TELEPORT_SHARE,
+    SumoFailed,
+    read_metrics,
+    run_sumo,
+)
 from sim.trips import filter_routes
 
 logger = logging.getLogger("run_baseline")
@@ -23,13 +29,16 @@ def hhmm(value: str) -> int:
     return int(hours) * 3600 + int(minutes or 0) * 60
 
 
-def cohort_ids(population_file: Path, begin_s: int, end_s: int) -> set[str]:
+def cohort_ids(
+    population_file: Path, begin_s: int, end_s: int, share: float
+) -> set[str]:
     """Travellers whose habitual departure falls in the window, fixed for every run."""
     people = json.loads(population_file.read_text())
     return {
         person["trip_id"]
         for person in people
         if begin_s <= person["habitual_departure_s"] < end_s
+        and demand_draw(person["trip_id"]) < share
     }
 
 
@@ -39,6 +48,12 @@ def main() -> int:
     parser.add_argument("--begin", default="08:00", help="Cohort window start, HH:MM")
     parser.add_argument("--end", default="10:00", help="Cohort window end, HH:MM")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--demand-share",
+        type=float,
+        default=1.0,
+        help="Fraction of the routed population to simulate, for calibrating load",
+    )
     parser.add_argument("--out", default="scenarios", type=Path)
     arguments = parser.parse_args()
 
@@ -61,20 +76,32 @@ def main() -> int:
         logger.error("window ends before it begins", extra={"begin": arguments.begin})
         return 2
 
-    keep = cohort_ids(population_file, begin_s, end_s)
+    if not 0.0 < arguments.demand_share <= 1.0:
+        logger.error(
+            "demand share must be in (0, 1]", extra={"given": arguments.demand_share}
+        )
+        return 2
+
+    keep = cohort_ids(population_file, begin_s, end_s, arguments.demand_share)
     if not keep:
         logger.error("no travellers depart in this window")
         return 1
 
     cohort_routes = target / "baseline.cohort.rou.xml"
-    written = filter_routes(all_routes, cohort_routes, keep)
+    written = filter_routes(all_routes, cohort_routes, keep, city.fleet)
     logger.info(
         "cohort selected",
-        extra={"in_window": len(keep), "routed": written, "window": arguments.begin},
+        extra={
+            "in_window": len(keep),
+            "routed": written,
+            "window": arguments.begin,
+            "demand_share": arguments.demand_share,
+        },
     )
 
     tripinfo = target / "baseline.tripinfo.xml"
     statistics = target / "baseline.stats.xml"
+    collisions = target / "baseline.collisions.xml"
 
     # No end time: the run continues until every vehicle in the cohort has arrived, so
     # the measurement covers whole journeys rather than whatever fitted in a fixed clock.
@@ -86,6 +113,7 @@ def main() -> int:
             statistics,
             arguments.seed,
             begin_s=max(0, begin_s - WARMUP_S),
+            collisions=collisions,
         )
     except SumoFailed as error:
         logger.error("sumo failed", extra={"reason": str(error)})
@@ -107,7 +135,8 @@ def main() -> int:
             extra={
                 "teleport_share": round(metrics.teleport_share, 4),
                 "limit": MAX_TELEPORT_SHARE,
-                "remedy": "reduce demand, widen the extract, or check the fleet mix",
+                "by_cause": metrics.teleports_by_cause,
+                "collisions_written_to": str(collisions),
             },
         )
 
@@ -118,6 +147,7 @@ def main() -> int:
                 "city": city.code,
                 "cohort_window": [arguments.begin, arguments.end],
                 "cohort_size": written,
+                "demand_share": arguments.demand_share,
                 "seed": arguments.seed,
                 **metrics.as_dict(),
                 "departures_by_slot": metrics.departures_by_slot,

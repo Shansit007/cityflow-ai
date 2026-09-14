@@ -5,6 +5,20 @@ from pathlib import Path
 
 SLOT_SECONDS = 15 * 60
 
+# Simulation step, in seconds. The car-following model cannot work out a safe speed
+# for a driver whose desired headway is shorter than one step, so this has to sit at
+# or below the smallest tau in the fleet. A two-wheeler's 0.6 s is the binding one;
+# at SUMO's default 1 s step, 69% of the fleet was unsimulable and 76% of vehicles
+# collided. Halving the step doubles run time, which is the price of a fleet whose
+# riders keep shorter gaps than a European saloon driver.
+STEP_LENGTH_S = 0.5
+
+# What counts as a collision. At SUMO's default of 1.0 a vehicle closer to its leader
+# than its own minGap is recorded as having crashed, so the same tailgating that makes
+# a two-wheeler occupy less road would be counted as a pile-up. At 0 only physical
+# overlap counts, which is what the word is supposed to mean.
+COLLISION_MINGAP_FACTOR = 0.0
+
 
 class SumoFailed(RuntimeError):
     pass
@@ -23,6 +37,7 @@ MAX_TELEPORT_SHARE = 0.01
 class RunMetrics:
     completed: int
     teleported: int
+    teleports_by_cause: dict[str, int]
     mean_duration_s: float
     mean_delay_s: float
     total_delay_hours: float
@@ -43,6 +58,7 @@ class RunMetrics:
             "completed": self.completed,
             "teleported": self.teleported,
             "teleport_share": round(self.teleport_share, 4),
+            "teleports_by_cause": self.teleports_by_cause,
             "valid": self.valid,
             "mean_duration_s": round(self.mean_duration_s, 1),
             "mean_delay_s": round(self.mean_delay_s, 1),
@@ -59,6 +75,7 @@ def run_sumo(
     seed: int,
     begin_s: int | None = None,
     end_s: int | None = None,
+    collisions: Path | None = None,
 ) -> None:
     """
     Runs one scenario.
@@ -82,12 +99,19 @@ def run_sumo(
         f"--tripinfo-output={tripinfo}",
         f"--statistic-output={statistics}",
         f"--seed={seed}",
+        f"--step-length={STEP_LENGTH_S}",
+        f"--collision.mingap-factor={COLLISION_MINGAP_FACTOR}",
         "--ignore-route-errors",
         "--time-to-teleport=300",
         "--no-warnings",
         "--duration-log.statistics",
         "--verbose",
     ]
+
+    if collisions is not None:
+        # Written whenever asked for, not only on failure. A run that passes the
+        # validity gate with a handful of collisions is worth being able to look at.
+        command.append(f"--collision-output={collisions}")
 
     if begin_s is not None:
         command.append(f"--begin={begin_s}")
@@ -99,17 +123,30 @@ def run_sumo(
         raise SumoFailed(f"sumo exited with status {result.returncode}")
 
 
-def read_teleports(statistics: Path) -> int:
+def read_teleports(statistics: Path) -> tuple[int, dict[str, int]]:
     """
-    Vehicles SUMO removed because they were stuck.
+    Vehicles SUMO removed, in total and by cause.
 
     Reported separately from the trip output because it is a validity check, not a
     result: a run with many teleports has broken down rather than congested, and its
     averages are not comparable with a run that has none.
+
+    The breakdown earns its place. A run failing on `jam` is over-saturated and wants
+    less demand; one failing on `collisions` is mis-parameterised and wants neither.
+    Both have looked identical in this project's history, and reading only the total
+    sent the first investigation at the wrong problem.
     """
     root = ET.parse(statistics).getroot()
     element = root.find("teleports")
-    return int(element.get("total", 0)) if element is not None else 0
+    if element is None:
+        return 0, {}
+
+    causes = {
+        name: int(element.get(name, 0))
+        for name in ("jam", "yield", "wrongLane", "collisions")
+        if int(element.get(name, 0)) > 0
+    }
+    return int(element.get("total", 0)), causes
 
 
 def read_metrics(tripinfo: Path, statistics: Path) -> RunMetrics:
@@ -142,9 +179,12 @@ def read_metrics(tripinfo: Path, statistics: Path) -> RunMetrics:
     if completed == 0:
         raise ValueError(f"{tripinfo} contains no completed trips.")
 
+    teleported, causes = read_teleports(statistics)
+
     return RunMetrics(
         completed=completed,
-        teleported=read_teleports(statistics),
+        teleported=teleported,
+        teleports_by_cause=causes,
         mean_duration_s=duration_total / completed,
         mean_delay_s=delay_total / completed,
         total_delay_hours=delay_total / 3600.0,

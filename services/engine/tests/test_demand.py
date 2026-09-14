@@ -3,7 +3,13 @@ import math
 import pytest
 
 from core.fleet import INDIAN_URBAN_PEAK, FleetMix
-from sim.demand import CELL_M, FLEXIBILITY_MINUTES, Endpoint, generate
+from sim.demand import (
+    CELL_M,
+    FLEXIBILITY_MINUTES,
+    Endpoint,
+    demand_draw,
+    generate,
+)
 
 GRID = 12
 
@@ -178,3 +184,36 @@ def test_endpoints_all_in_one_cell_is_refused() -> None:
 
     with pytest.raises(ValueError, match="one cell"):
         generate(crowded, count=10, seed=1, fleet=INDIAN_URBAN_PEAK)
+
+
+def test_demand_draws_are_uniform_so_a_share_keeps_that_share() -> None:
+    ids = [f"t{i}" for i in range(20000)]
+
+    for share in (0.25, 0.5, 0.75):
+        kept = sum(1 for i in ids if demand_draw(i) < share) / len(ids)
+        assert abs(kept - share) < 0.02
+
+
+def test_demand_levels_nest_so_calibration_only_removes_people() -> None:
+    # Lowering the demand level must drop travellers, never swap them. Otherwise two
+    # runs at different levels differ in who is on the road as well as how many, and
+    # neither can be blamed for the difference between them.
+    ids = [f"t{i}" for i in range(5000)]
+
+    assert {i for i in ids if demand_draw(i) < 0.4} < {
+        i for i in ids if demand_draw(i) < 0.8
+    }
+
+
+def test_demand_draw_is_stable_across_processes() -> None:
+    # Hashed rather than drawn from an RNG: a baseline and the allocator run compared
+    # against it are separate processes and must contain the same people.
+    assert demand_draw("t0") == pytest.approx(0.869248, abs=1e-6)
+
+
+def test_demand_and_participation_are_independent() -> None:
+    people = population(count=5000)
+    thinned = [p for p in people if demand_draw(p.trip_id) < 0.5]
+
+    share = sum(1 for p in thinned if p.participates(0.2)) / len(thinned)
+    assert 0.17 <= share <= 0.23

@@ -33,5 +33,6 @@ def write_vtypes(root: ET.Element, fleet: FleetMix) -> None:
             maxSpeed=f"{spec.max_speed_ms:.2f}",
             accel=f"{spec.accel_ms2:.2f}",
             decel=f"{spec.decel_ms2:.2f}",
+            emergencyDecel=f"{spec.emergency_decel_ms2:.2f}",
             sigma=f"{spec.sigma:.2f}",
         )

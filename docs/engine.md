@@ -119,9 +119,21 @@ proxy for built-up density and not a land-use model: a residential grid and an e
 dense office district look identical to it, so the model produces no directional
 morning tide into a centre. That is a real limitation of the result and not a detail.
 
-On the Bengaluru extract the 4.5 km decay gives a mean straight-line journey of 4.96 km
-(median 4.41, p90 9.42), which is about 7.8 km by road at the network's observed
-detour factor of 1.57.
+On the Bengaluru extract the 4.5 km decay gives a mean straight-line journey of 4.97 km
+(median 4.42, p90 9.48), which is 8.2 km by road as routed.
+
+### How much demand
+
+The number of journeys is a calibration, not a fact: it is chosen so the baseline
+congests without breaking down, since a network that never exceeds capacity gives a
+departure-time allocator nothing to do and one that gridlocks cannot be measured at
+all. `run_baseline.py --demand-share` thins the routed population at run time, keyed on
+a stable hash of the trip id, so finding that level costs a simulation rather than a
+re-route. Levels nest: lowering the share removes travellers and never substitutes
+them, so two runs at different levels differ only in how many people are on the road.
+
+Every result records the share it was produced at. A delay figure without one is not a
+figure.
 
 ## Why a run can be invalid
 
@@ -130,9 +142,14 @@ teleport. A handful are the price of simulating a real network. A large number m
 run has gridlocked, and an average delay taken over the survivors of a gridlock is not
 a measurement of anything.
 
-`sim/runner.py` therefore records `teleport_share` and a boolean `valid` alongside every
-result, with the threshold at 1%, and `run_baseline.py` exits non-zero when a run fails
-it. This exists because the first CityFlow baseline failed it badly and looked fine:
+`sim/runner.py` therefore records `teleport_share`, a breakdown by cause and a boolean
+`valid` alongside every result, with the threshold at 1%, and `run_baseline.py` exits
+non-zero when a run fails it. Two baselines have failed this gate, for unrelated
+reasons, and neither announced itself in the averages.
+
+### First failure: the simulation and the capacity model disagreed
+
+The first CityFlow baseline failed the gate badly and looked fine:
 
 ```
 cohort           20,604 trips, 08:00-10:00
@@ -159,6 +176,45 @@ peaking, which is precisely the thing the project claims to address.
 Declaring the fleet and replacing uniform sampling with distance decay cuts PCU-
 kilometres to roughly 48% of the original: 0.722/1.0 from the fleet, 0.67 from the
 shorter journeys.
+
+### Second failure: the fleet could not be simulated at the default step
+
+The next run was not congested at all — 167 s mean time loss, 9 km/h, 76 s of waiting —
+and still failed, this time with every teleport attributed to a collision:
+
+```
+cohort           20,697 trips, 08:00-10:00
+mean delay        167.5 s
+teleports        15,729  (76.0%, all collisions, zero for jam)
+```
+
+Declaring the fleet had introduced the problem that fixed the first one. A driver's
+`tau` is the headway they aim to keep, and the car-following model cannot work out a
+safe speed for a headway shorter than one simulation step. SUMO's default step is 1 s;
+the two-wheeler's tau is 0.6 s and the auto-rickshaw's 0.9 s, so 69% of the fleet was
+asking for something the solver could not represent. Vehicles drove into each other and
+were teleported out.
+
+The short headway is not a parameter to raise — it is most of why a two-wheeler occupies
+less road than a car, and `simulated_pcu` is derived from it. So the step comes down to
+0.5 s instead, which doubles run time. `tests/test_fleet.py` asserts that no tau is below
+the step, so lowering one or raising the other fails a test rather than a baseline.
+
+Two smaller changes went with it. `--collision.mingap-factor` is set to 0, because at
+SUMO's default of 1.0 a vehicle closer to its leader than its own minimum gap is
+recorded as having crashed — which would count the very tailgating that makes a
+two-wheeler efficient as a pile-up. And every type gets an `emergencyDecel` above the
+hardest normal braking in the fleet, because a follower computes its safe speed assuming
+the leader brakes no harder than it can itself: a bus behind a two-wheeler that stops at
+5 m/s2 collides by construction otherwise.
+
+### Why the breakdown by cause is recorded
+
+These two failures produced the same headline number — a large `teleport_share` — from
+opposite causes. The first was a network over-saturated with traffic; the second was a
+network almost empty of it. Reading only the total sent the first investigation at the
+wrong problem, so `teleports_by_cause` is now part of every result: a run failing on
+`jam` wants less demand, one failing on `collisions` wants neither more nor less of it.
 
 A congested baseline is wanted. A broken-down one is not, because the treatment run has
 to be compared against it, and two gridlocks are not comparable.

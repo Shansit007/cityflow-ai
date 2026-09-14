@@ -72,3 +72,26 @@ def test_declared_types_carry_the_parameters_capacity_was_derived_from() -> None
     assert float(scooter.get("length", 0)) == pytest.approx(spec.length_m)
     assert float(scooter.get("minGap", 0)) == pytest.approx(spec.min_gap_m)
     assert float(scooter.get("tau", 0)) == pytest.approx(spec.tau_s)
+
+
+def test_no_desired_headway_is_shorter_than_a_simulation_step() -> None:
+    # The car-following model cannot compute a safe speed for a driver whose desired
+    # headway is shorter than one step, and the failure is silent: vehicles drive into
+    # each other and are teleported away. A baseline run this way collided 15,729 of
+    # 20,697 vehicles while reporting a perfectly reasonable mean delay. Lowering a
+    # tau below the step, or raising the step above the smallest tau, must fail here
+    # rather than in a result nobody rechecks.
+    from sim.runner import STEP_LENGTH_S
+
+    for name, spec in VEHICLES.items():
+        assert spec.tau_s >= STEP_LENGTH_S, f"{name} tau is below the simulation step"
+
+
+def test_emergency_braking_beats_the_hardest_normal_braking_in_the_fleet() -> None:
+    # A follower works out its safe speed assuming the leader brakes no harder than
+    # the follower itself can. A bus behind a two-wheeler that stops at 5 m/s2 has to
+    # be able to exceed that, or the pair collide by construction.
+    hardest = max(spec.decel_ms2 for spec in VEHICLES.values())
+
+    for name, spec in VEHICLES.items():
+        assert spec.emergency_decel_ms2 >= hardest, f"{name} cannot brake out of trouble"

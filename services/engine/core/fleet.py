@@ -27,6 +27,12 @@ class VehicleSpec:
     max_speed_ms: float
     accel_ms2: float
     decel_ms2: float
+    # Braking a driver will only use to avoid a crash. It has to be at least the
+    # hardest decel any vehicle in the fleet uses, because the car-following model
+    # computes a safe speed assuming the leader brakes no harder than the follower
+    # can: a bus behind a two-wheeler that can stop at 5 m/s2 has to be able to
+    # exceed that or the two will collide by construction.
+    emergency_decel_ms2: float
     sigma: float
     indo_hcm_pcu: float
     sumo_class: str
@@ -50,6 +56,7 @@ VEHICLES: dict[str, VehicleSpec] = {
         max_speed_ms=16.7,
         accel_ms2=3.0,
         decel_ms2=5.0,
+        emergency_decel_ms2=9.0,
         sigma=0.6,
         indo_hcm_pcu=0.35,
         sumo_class="motorcycle",
@@ -62,6 +69,7 @@ VEHICLES: dict[str, VehicleSpec] = {
         max_speed_ms=16.7,
         accel_ms2=2.6,
         decel_ms2=4.5,
+        emergency_decel_ms2=9.0,
         sigma=0.5,
         indo_hcm_pcu=1.00,
         sumo_class="passenger",
@@ -74,6 +82,7 @@ VEHICLES: dict[str, VehicleSpec] = {
         max_speed_ms=12.5,
         accel_ms2=2.0,
         decel_ms2=4.0,
+        emergency_decel_ms2=9.0,
         sigma=0.6,
         indo_hcm_pcu=0.80,
         sumo_class="passenger",
@@ -86,6 +95,7 @@ VEHICLES: dict[str, VehicleSpec] = {
         max_speed_ms=13.9,
         accel_ms2=1.5,
         decel_ms2=3.5,
+        emergency_decel_ms2=7.0,
         sigma=0.5,
         indo_hcm_pcu=1.40,
         sumo_class="delivery",
@@ -98,6 +108,7 @@ VEHICLES: dict[str, VehicleSpec] = {
         max_speed_ms=12.5,
         accel_ms2=1.2,
         decel_ms2=3.0,
+        emergency_decel_ms2=7.0,
         sigma=0.4,
         indo_hcm_pcu=3.00,
         sumo_class="bus",
