@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from core.fleet import FleetMix
+from core.fleet import FleetMix, PcuBasis
 
 
 # Saturation flow is the rate vehicles discharge from a standing queue when the
@@ -81,6 +81,7 @@ def segment_capacity_vph(
     lanes: int,
     fleet: FleetMix,
     lane_width_m: float = STANDARD_LANE_WIDTH_M,
+    basis: PcuBasis = "simulated",
 ) -> int:
     """
     Capacity in vehicles per hour, which is what the allocator counts.
@@ -90,6 +91,12 @@ def segment_capacity_vph(
     vehicles per hour than its PCU capacity — ignoring this understates Indian urban
     capacity by roughly a third, and would make the allocator shift people who did not
     need to move.
+
+    The default basis is what the simulated fleet reproduces, not the published
+    Indo-HCM figure, and the two differ by about 14%. The allocator's budget and the
+    simulation that checks it have to describe the same traffic stream or the
+    measurement is of the gap between them; core/fleet.py sets out why the figures
+    differ and docs/engine.md what it would take to close it.
     """
     pcu = segment_capacity_pcu(highway_class, lanes, lane_width_m)
-    return round(pcu / fleet.mean_pcu())
+    return round(pcu / fleet.mean_pcu(basis))

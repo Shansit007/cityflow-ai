@@ -5,7 +5,9 @@ from pathlib import Path
 
 import networkx as nx
 
-from sim.demand import Traveller
+from core.fleet import FleetMix
+from sim.demand import Endpoint, Traveller
+from sim.vehicles import write_vtypes
 
 # Trips begin and end where people are, which is not on a motorway shoulder. Limiting
 # endpoints to street classes keeps the demand plausible; arterials still carry the
@@ -29,9 +31,9 @@ class DuarouterFailed(RuntimeError):
     pass
 
 
-def collect_endpoints(net_file: Path) -> tuple[list[str], list[float]]:
+def collect_endpoints(net_file: Path) -> list[Endpoint]:
     """
-    Candidate trip endpoints and their weights.
+    Candidate trip endpoints, each with its position on the network.
 
     Restricted to the largest strongly connected component. Without that, 13% of a
     50,000-trip population was unroutable and silently dropped, leaving a baseline
@@ -40,8 +42,7 @@ def collect_endpoints(net_file: Path) -> tuple[list[str], list[float]]:
     network, which is what strong connectivity means here.
     """
     reachable = _largest_component(net_file)
-    ids: list[str] = []
-    weights: list[float] = []
+    endpoints: list[Endpoint] = []
 
     for _, element in ET.iterparse(net_file, events=("end",)):
         if element.tag != "edge":
@@ -53,16 +54,42 @@ def collect_endpoints(net_file: Path) -> tuple[list[str], list[float]]:
             and edge_id in reachable
             and element.get("type") in ENDPOINT_CLASSES
         ):
-            length = sum(
-                float(lane.get("length", 0.0)) for lane in element.findall("lane")
-            )
-            if length >= MIN_ENDPOINT_LENGTH_M:
-                ids.append(edge_id)
-                weights.append(length)
+            lanes = element.findall("lane")
+            length = sum(float(lane.get("length", 0.0)) for lane in lanes)
+            position = _midpoint(lanes)
+            if length >= MIN_ENDPOINT_LENGTH_M and position is not None:
+                endpoints.append(
+                    Endpoint(
+                        edge_id=edge_id,
+                        x=position[0],
+                        y=position[1],
+                        length_m=length,
+                    )
+                )
 
         element.clear()
 
-    return ids, weights
+    return endpoints
+
+
+def _midpoint(lanes: list[ET.Element]) -> tuple[float, float] | None:
+    """
+    Where an edge sits, as the midpoint of its first lane's end-to-end line.
+
+    A gravity model buckets endpoints into 500 m cells, so following the lane's real
+    geometry would change nothing and cost a parse of every shape point.
+    """
+    for lane in lanes:
+        shape = lane.get("shape", "").split()
+        if len(shape) < 2:
+            continue
+        try:
+            start_x, start_y = (float(v) for v in shape[0].split(",")[:2])
+            end_x, end_y = (float(v) for v in shape[-1].split(",")[:2])
+        except ValueError:
+            continue
+        return (start_x + end_x) / 2, (start_y + end_y) / 2
+    return None
 
 
 def _largest_component(net_file: Path) -> set[str]:
@@ -91,10 +118,13 @@ def _largest_component(net_file: Path) -> set[str]:
 
 
 def write_trips(
-    travellers: list[Traveller], departures: dict[str, int], path: Path
+    travellers: list[Traveller],
+    departures: dict[str, int],
+    path: Path,
+    fleet: FleetMix,
 ) -> None:
     """
-    Writes SUMO trip definitions.
+    Writes SUMO trip definitions, preceded by the vehicle types they refer to.
 
     `departures` maps trip id to departure second, so the same population can be written
     once at its habitual times and again at whatever the allocator chose. Everything
@@ -102,6 +132,7 @@ def write_trips(
     comparison a controlled experiment rather than two different simulations.
     """
     root = ET.Element("routes")
+    write_vtypes(root, fleet)
 
     ordered = sorted(travellers, key=lambda t: departures[t.trip_id])
     for traveller in ordered:
@@ -109,6 +140,7 @@ def write_trips(
             root,
             "trip",
             id=traveller.trip_id,
+            type=traveller.vehicle_type,
             depart=f"{departures[traveller.trip_id]}.00",
             attrib={"from": traveller.origin_edge, "to": traveller.destination_edge},
             departLane="best",
@@ -129,8 +161,8 @@ def run_duarouter(
     strongly connected component, so a large unroutable count now means something is
     wrong rather than something is expected. The surviving count is always reported.
 
-    Routing is the slowest step in the pipeline and is embarrassingly parallel across
-    trips, so it uses the machine's cores rather than one of them.
+    Routing 50k pairs is the slowest step in the pipeline and is embarrassingly parallel
+    across trips, so it uses the machine's cores rather than one of them.
     """
     command = [
         "duarouter",
@@ -142,8 +174,8 @@ def run_duarouter(
         "--ignore-errors",
         "--repair",
         "--no-warnings",
-        # Routing 50k pairs takes minutes. Without progress output a slow run and a
-        # hung one look identical, so step logging stays on and is streamed.
+        # Without progress output a slow run and a hung one look identical, so step
+        # logging stays on and is streamed.
         "--verbose",
     ]
 
@@ -159,3 +191,41 @@ def count_routes(routes: Path) -> int:
             total += 1
         element.clear()
     return total
+
+
+def filter_routes(source: Path, destination: Path, keep: set[str]) -> int:
+    """
+    Writes out only the vehicles in `keep`, preserving their routes and vehicle types.
+
+    The measured cohort is fixed by habitual departure and stays the same in every run
+    of a comparison. Selecting instead by whether a trip happened to finish inside a
+    simulated window would let the allocator change the cohort by moving people across
+    the boundary, and the runs would no longer be measuring the same population.
+
+    vType elements are carried over because a vehicle referring to a type the document
+    does not declare is an error SUMO raises at load, after the several minutes it
+    takes to read the network.
+    """
+    root = ET.Element("routes")
+    written = 0
+
+    for _, element in ET.iterparse(source, events=("end",)):
+        if element.tag == "vType":
+            root.append(_copy(element))
+            element.clear()
+        elif element.tag == "vehicle":
+            if element.get("id", "") in keep:
+                root.append(_copy(element))
+                written += 1
+            element.clear()
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    ET.ElementTree(root).write(destination, encoding="utf-8", xml_declaration=True)
+    return written
+
+
+def _copy(element: ET.Element) -> ET.Element:
+    clone = ET.Element(element.tag, dict(element.attrib))
+    for child in element:
+        clone.append(ET.Element(child.tag, dict(child.attrib)))
+    return clone

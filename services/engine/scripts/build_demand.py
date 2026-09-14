@@ -3,13 +3,14 @@
 import argparse
 import json
 import logging
+import math
 import sys
 from dataclasses import asdict
 from pathlib import Path
 
 from app.logging import configure_logging
 from core.cities import get_city
-from sim.demand import generate
+from sim.demand import Traveller, generate
 from sim.trips import (
     DuarouterFailed,
     collect_endpoints,
@@ -19,6 +20,25 @@ from sim.trips import (
 )
 
 logger = logging.getLogger("build_demand")
+
+
+def straight_line_stats(
+    people: list[Traveller], positions: dict[str, tuple[float, float]]
+) -> dict[str, float]:
+    """
+    Journey lengths as the crow flies, which the gravity model's decay controls
+    directly. Network distance runs roughly 1.3 to 1.5 times this; both are reported
+    in docs/engine.md so the calibration can be checked rather than taken on trust.
+    """
+    distances = sorted(
+        math.dist(positions[p.origin_edge], positions[p.destination_edge])
+        for p in people
+    )
+    return {
+        "mean_km": round(sum(distances) / len(distances) / 1000, 2),
+        "median_km": round(distances[len(distances) // 2] / 1000, 2),
+        "p90_km": round(distances[int(len(distances) * 0.9)] / 1000, 2),
+    }
 
 
 def main() -> int:
@@ -42,14 +62,29 @@ def main() -> int:
         )
         return 2
 
-    endpoints, weights = collect_endpoints(net_file)
+    endpoints = collect_endpoints(net_file)
     logger.info("endpoints collected", extra={"candidate_edges": len(endpoints)})
 
     if len(endpoints) < 2:
         logger.error("too few candidate endpoints to build trips")
         return 1
 
-    people = generate(endpoints, weights, count=arguments.trips, seed=arguments.seed)
+    people = generate(
+        endpoints, count=arguments.trips, seed=arguments.seed, fleet=city.fleet
+    )
+
+    positions = {e.edge_id: (e.x, e.y) for e in endpoints}
+    drawn: dict[str, int] = {}
+    for person in people:
+        drawn[person.vehicle_type] = drawn.get(person.vehicle_type, 0) + 1
+    logger.info(
+        "population generated",
+        extra={
+            "trips": len(people),
+            "fleet": {k: round(v / len(people), 3) for k, v in sorted(drawn.items())},
+            **straight_line_stats(people, positions),
+        },
+    )
 
     population_file = target / "population.json"
     population_file.write_text(json.dumps([asdict(p) for p in people]))
@@ -58,7 +93,7 @@ def main() -> int:
     trips_file = target / "baseline.trips.xml"
     routes_file = target / "baseline.rou.xml"
 
-    write_trips(people, habitual, trips_file)
+    write_trips(people, habitual, trips_file, city.fleet)
     logger.info("trips written", extra={"trips": len(people), "path": str(trips_file)})
 
     try:

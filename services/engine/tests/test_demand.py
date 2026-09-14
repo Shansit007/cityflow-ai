@@ -1,13 +1,39 @@
+import math
+
 import pytest
 
-from sim.demand import FLEXIBILITY_MINUTES, generate
+from core.fleet import INDIAN_URBAN_PEAK, FleetMix
+from sim.demand import CELL_M, FLEXIBILITY_MINUTES, Endpoint, generate
 
-EDGES = [f"e{i}" for i in range(50)]
-WEIGHTS = [1.0] * 50
+GRID = 12
 
 
-def population(count: int = 2000, seed: int = 7):
-    return generate(EDGES, WEIGHTS, count=count, seed=seed)
+def grid_endpoints(side: int = GRID) -> list[Endpoint]:
+    """A square city of uniform street density, so any spatial bias is the model's."""
+    return [
+        Endpoint(
+            edge_id=f"e{i}-{j}",
+            x=(i + 0.5) * CELL_M,
+            y=(j + 0.5) * CELL_M,
+            length_m=100.0,
+        )
+        for i in range(side)
+        for j in range(side)
+    ]
+
+
+ENDPOINTS = grid_endpoints()
+POSITION = {e.edge_id: (e.x, e.y) for e in ENDPOINTS}
+
+
+def population(count: int = 2000, seed: int = 7, fleet: FleetMix = INDIAN_URBAN_PEAK):
+    return generate(ENDPOINTS, count=count, seed=seed, fleet=fleet)
+
+
+def separations(people) -> list[float]:
+    return [
+        math.dist(POSITION[p.origin_edge], POSITION[p.destination_edge]) for p in people
+    ]
 
 
 def test_the_same_seed_reproduces_the_same_population() -> None:
@@ -67,6 +93,51 @@ def test_flexibility_follows_the_declared_distribution() -> None:
         assert abs(share - expected) < 0.02
 
 
+def test_vehicle_types_follow_the_fleet_mix() -> None:
+    people = population(count=20000)
+
+    for name, expected in INDIAN_URBAN_PEAK.shares().items():
+        share = sum(1 for p in people if p.vehicle_type == name) / len(people)
+        assert abs(share - expected) < 0.02
+
+
+def test_a_single_type_fleet_puts_everyone_in_that_vehicle() -> None:
+    all_cars = FleetMix(two_wheeler=0.0, car=1.0, auto_rickshaw=0.0, lcv=0.0, bus=0.0)
+
+    assert {p.vehicle_type for p in population(fleet=all_cars)} == {"car"}
+
+
+def test_journeys_are_shorter_than_picking_a_destination_at_random() -> None:
+    # The gravity model is the fix for a baseline that gridlocked on distance rather
+    # than on peaking: uniform destinations over a city this size average well over
+    # half its diagonal, which no commute population does.
+    diagonal = math.hypot(GRID * CELL_M, GRID * CELL_M)
+    mean = sum(separations(population(count=5000))) / 5000
+
+    assert mean < diagonal / 3
+
+
+def test_near_destinations_are_chosen_more_often_than_far_ones() -> None:
+    distances = separations(population(count=5000))
+    near = sum(1 for d in distances if d <= 2000)
+    far = sum(1 for d in distances if d >= 5000)
+
+    assert near > far
+
+
+def test_trip_length_responds_to_the_decay_parameter(monkeypatch) -> None:
+    # Distance decay has to be doing the work. If mean journey length were set by the
+    # geometry of the extract instead, changing the parameter would move nothing and
+    # the calibration in docs/engine.md would be describing a constant.
+    import sim.demand as demand
+
+    baseline = sum(separations(population(count=3000))) / 3000
+    monkeypatch.setattr(demand, "DECAY_M", 1500.0)
+    tighter = sum(separations(population(count=3000))) / 3000
+
+    assert tighter < baseline * 0.8
+
+
 def test_inflexible_travellers_are_never_movable_even_at_full_adoption() -> None:
     fixed = [p for p in population() if p.flexibility_minutes == 0]
 
@@ -92,14 +163,18 @@ def test_the_departure_window_is_symmetric_around_the_habitual_time() -> None:
 @pytest.mark.parametrize("count", [0, -1])
 def test_a_nonsense_trip_count_is_refused(count: int) -> None:
     with pytest.raises(ValueError):
-        generate(EDGES, WEIGHTS, count=count, seed=1)
+        generate(ENDPOINTS, count=count, seed=1, fleet=INDIAN_URBAN_PEAK)
 
 
-def test_mismatched_edges_and_weights_are_refused() -> None:
+def test_too_few_endpoints_is_refused() -> None:
     with pytest.raises(ValueError):
-        generate(EDGES, [1.0], count=10, seed=1)
+        generate(ENDPOINTS[:1], count=10, seed=1, fleet=INDIAN_URBAN_PEAK)
 
 
-def test_no_edges_at_all_is_refused() -> None:
-    with pytest.raises(ValueError):
-        generate([], [], count=10, seed=1)
+def test_endpoints_all_in_one_cell_is_refused() -> None:
+    crowded = [
+        Endpoint(edge_id=f"e{i}", x=10.0 + i, y=10.0, length_m=50.0) for i in range(5)
+    ]
+
+    with pytest.raises(ValueError, match="one cell"):
+        generate(crowded, count=10, seed=1, fleet=INDIAN_URBAN_PEAK)

@@ -10,6 +10,15 @@ class SumoFailed(RuntimeError):
     pass
 
 
+# Share of vehicles SUMO may remove before the run stops describing congestion. A
+# teleport is a vehicle that sat immobile for five minutes and was lifted out of the
+# queue; a handful are the price of simulating a real network, but a run losing more
+# than this has gridlocked, and a mean delay taken over the survivors of a gridlock is
+# not a measurement of anything. The first CityFlow baseline lost 13% this way, and
+# docs/engine.md records what was wrong and how it was found.
+MAX_TELEPORT_SHARE = 0.01
+
+
 @dataclass(frozen=True)
 class RunMetrics:
     completed: int
@@ -20,10 +29,21 @@ class RunMetrics:
     peak_departures: int
     departures_by_slot: dict[int, int]
 
+    @property
+    def teleport_share(self) -> float:
+        return self.teleported / self.completed if self.completed else 1.0
+
+    @property
+    def valid(self) -> bool:
+        """Whether this run's averages may be quoted or compared to another run's."""
+        return self.teleport_share <= MAX_TELEPORT_SHARE
+
     def as_dict(self) -> dict[str, object]:
         return {
             "completed": self.completed,
             "teleported": self.teleported,
+            "teleport_share": round(self.teleport_share, 4),
+            "valid": self.valid,
             "mean_duration_s": round(self.mean_duration_s, 1),
             "mean_delay_s": round(self.mean_delay_s, 1),
             "total_delay_hours": round(self.total_delay_hours, 1),
@@ -32,10 +52,22 @@ class RunMetrics:
 
 
 def run_sumo(
-    net_file: Path, routes: Path, tripinfo: Path, statistics: Path, seed: int
+    net_file: Path,
+    routes: Path,
+    tripinfo: Path,
+    statistics: Path,
+    seed: int,
+    begin_s: int | None = None,
+    end_s: int | None = None,
 ) -> None:
     """
-    Runs one scenario to completion.
+    Runs one scenario.
+
+    begin_s and end_s restrict the simulated window. The population spans a whole day
+    with two peaks, and most of that day is a near-empty network; simulating it costs
+    hours and tells us nothing about peak-hour delay, which is what the project claims
+    to change. Both runs of a comparison must use the same window or the trip counts
+    differ and the averages are not comparable.
 
     time-to-teleport is left at SUMO's default rather than disabled. A vehicle stuck for
     five minutes is removed and counted, which keeps a gridlocked run from never ending;
@@ -51,10 +83,16 @@ def run_sumo(
         f"--statistic-output={statistics}",
         f"--seed={seed}",
         "--ignore-route-errors",
+        "--time-to-teleport=300",
         "--no-warnings",
         "--duration-log.statistics",
         "--verbose",
     ]
+
+    if begin_s is not None:
+        command.append(f"--begin={begin_s}")
+    if end_s is not None:
+        command.append(f"--end={end_s}")
 
     result = subprocess.run(command, check=False)
     if result.returncode != 0:
