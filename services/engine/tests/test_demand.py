@@ -6,8 +6,8 @@ EDGES = [f"e{i}" for i in range(50)]
 WEIGHTS = [1.0] * 50
 
 
-def population(adoption: float = 0.2, count: int = 2000, seed: int = 7):
-    return generate(EDGES, WEIGHTS, count=count, adoption=adoption, seed=seed)
+def population(count: int = 2000, seed: int = 7):
+    return generate(EDGES, WEIGHTS, count=count, seed=seed)
 
 
 def test_the_same_seed_reproduces_the_same_population() -> None:
@@ -18,19 +18,30 @@ def test_a_different_seed_changes_it() -> None:
     assert population(seed=11) != population(seed=12)
 
 
-def test_adoption_controls_the_share_that_participates() -> None:
-    people = population(adoption=0.2, count=20000)
-    share = sum(1 for p in people if p.participates) / len(people)
+def test_adoption_selects_roughly_its_share() -> None:
+    people = population(count=20000)
+    share = sum(1 for p in people if p.participates(0.2)) / len(people)
 
     assert 0.18 <= share <= 0.22
 
 
-def test_nobody_participates_at_zero_adoption() -> None:
-    assert not any(p.participates for p in population(adoption=0.0))
+def test_nobody_participates_at_zero_and_everybody_at_one() -> None:
+    people = population()
+
+    assert not any(p.participates(0.0) for p in people)
+    assert all(p.participates(1.0) for p in people)
 
 
-def test_everybody_participates_at_full_adoption() -> None:
-    assert all(p.participates for p in population(adoption=1.0))
+def test_adoption_cohorts_are_nested_so_the_sweep_isolates_adoption() -> None:
+    # The people using the app at 5% must still be using it at 20%. If the cohort were
+    # redrawn per level, a difference between levels could be who participates rather
+    # than how many, and the sweep would measure nothing in particular.
+    people = population(count=5000)
+
+    small = {p.trip_id for p in people if p.participates(0.05)}
+    large = {p.trip_id for p in people if p.participates(0.20)}
+
+    assert small < large
 
 
 def test_a_trip_never_starts_and_ends_on_the_same_edge() -> None:
@@ -56,20 +67,18 @@ def test_flexibility_follows_the_declared_distribution() -> None:
         assert abs(share - expected) < 0.02
 
 
-def test_inflexible_travellers_are_never_movable_even_when_they_participate() -> None:
-    people = population(adoption=1.0)
-    fixed = [p for p in people if p.flexibility_minutes == 0]
+def test_inflexible_travellers_are_never_movable_even_at_full_adoption() -> None:
+    fixed = [p for p in population() if p.flexibility_minutes == 0]
 
     assert fixed, "expected some travellers with no flexibility"
-    assert not any(p.movable for p in fixed)
+    assert not any(p.movable(1.0) for p in fixed)
 
 
 def test_non_participants_are_never_movable_however_flexible_they_are() -> None:
-    people = population(adoption=0.0)
-    flexible = [p for p in people if p.flexibility_minutes > 0]
+    flexible = [p for p in population() if p.flexibility_minutes > 0]
 
     assert flexible
-    assert not any(p.movable for p in flexible)
+    assert not any(p.movable(0.0) for p in flexible)
 
 
 def test_the_departure_window_is_symmetric_around_the_habitual_time() -> None:
@@ -80,15 +89,17 @@ def test_the_departure_window_is_symmetric_around_the_habitual_time() -> None:
     assert person.latest_departure_s == person.habitual_departure_s + slack
 
 
-@pytest.mark.parametrize(
-    ("count", "adoption"),
-    [(0, 0.2), (-1, 0.2), (10, 1.5), (10, -0.1)],
-)
-def test_nonsense_parameters_are_refused(count: int, adoption: float) -> None:
+@pytest.mark.parametrize("count", [0, -1])
+def test_a_nonsense_trip_count_is_refused(count: int) -> None:
     with pytest.raises(ValueError):
-        generate(EDGES, WEIGHTS, count=count, adoption=adoption, seed=1)
+        generate(EDGES, WEIGHTS, count=count, seed=1)
 
 
 def test_mismatched_edges_and_weights_are_refused() -> None:
     with pytest.raises(ValueError):
-        generate(EDGES, [1.0], count=10, adoption=0.2, seed=1)
+        generate(EDGES, [1.0], count=10, seed=1)
+
+
+def test_no_edges_at_all_is_refused() -> None:
+    with pytest.raises(ValueError):
+        generate([], [], count=10, seed=1)

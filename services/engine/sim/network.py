@@ -90,9 +90,16 @@ class NetconvertFailed(RuntimeError):
 
 def run_netconvert(nodes: Path, edges: Path, output: Path) -> str:
     """
-    Builds the SUMO network. Junction joining matters more than it looks: an OSM
-    intersection is often several nodes a few metres apart, and left as-is SUMO creates
-    a cluster of tiny junctions that deadlock under load.
+    Builds the SUMO network.
+
+    Junction joining matters more than it looks: an OSM intersection is often several
+    nodes a few metres apart, and left as-is SUMO creates a cluster of tiny junctions
+    that deadlock under load.
+
+    tls.guess keeps its default threshold. An earlier run lowered it and signalised 36%
+    of all junctions, which would have produced congestion caused by signal density
+    rather than by demand. SUMO's inference is still far more generous than reality, so
+    signal_share is reported and treated as a limitation rather than a calibrated value.
     """
     command = [
         "netconvert",
@@ -102,7 +109,6 @@ def run_netconvert(nodes: Path, edges: Path, output: Path) -> str:
         "--junctions.join",
         "--junctions.join-dist=12",
         "--tls.guess",
-        "--tls.guess.threshold=25",
         "--tls.join",
         "--tls.default-type=static",
         "--no-turnarounds",

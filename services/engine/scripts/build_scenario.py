@@ -13,11 +13,11 @@ from app.logging import configure_logging
 from core.cities import get_city
 from sim.network import (
     NetconvertFailed,
-    summarise,
     PlainEdge,
     PlainNode,
     edge_id,
     run_netconvert,
+    summarise,
     write_edges,
     write_nodes,
 )
@@ -137,6 +137,7 @@ def main() -> int:
             "edges_dropped": len(edges) - built.edges,
             "junctions": built.junctions,
             "traffic_lights": built.traffic_lights,
+            "signal_share": round(built.traffic_lights / max(built.junctions, 1), 3),
             "lane_km": round(built.lane_metres / 1000, 1),
         },
     )
