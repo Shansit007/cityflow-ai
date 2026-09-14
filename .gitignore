@@ -35,3 +35,6 @@ next-env.d.ts
 
 # OSRM extracts and prepared graphs are large and rebuildable.
 infra/osrm/
+
+# osmnx caches raw Overpass responses here so a re-run does not re-download.
+services/engine/cache/
