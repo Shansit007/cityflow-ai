@@ -18,12 +18,27 @@ dev = [
     "ruff==0.8.6",
 ]
 
+# Network extraction, simulation and model training. Kept out of the default install
+# because the web service never needs them and they are most of the install time.
+sim = [
+    "osmnx==2.1.1",
+    "geopandas==1.1.4",
+    "shapely==2.1.2",
+    "pandas==3.0.5",
+    "numpy==2.5.3",
+    "scikit-learn==1.9.1",
+    "lightgbm==4.7.0",
+    "matplotlib==3.11.2",
+    "eclipse-sumo==1.27.1",
+    "sumolib==1.27.1",
+]
+
 [build-system]
 requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["app*", "core*"]
 
 [tool.ruff]
 line-length = 90
@@ -31,6 +46,9 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "core"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
