@@ -38,3 +38,6 @@ infra/osrm/
 
 # osmnx caches raw Overpass responses here so a re-run does not re-download.
 services/engine/cache/
+
+# SUMO scenarios are large generated artefacts, rebuilt by scripts/build_scenario.py
+services/engine/scenarios/

@@ -13,23 +13,27 @@ from core.fleet import FleetMix
 class RoadClass:
     saturation_flow: int
     green_ratio: float
+    # Free-flow speed in km/h, which is what an empty road allows rather than what
+    # the sign says. Indian urban speeds sit well below European equivalents for the
+    # same class because of frontage activity, parking and mixed traffic.
+    free_flow_kph: int
 
 
 ROAD_CLASSES: dict[str, RoadClass] = {
-    "motorway": RoadClass(saturation_flow=2000, green_ratio=1.00),
-    "motorway_link": RoadClass(saturation_flow=1800, green_ratio=1.00),
-    "trunk": RoadClass(saturation_flow=1900, green_ratio=0.85),
-    "trunk_link": RoadClass(saturation_flow=1700, green_ratio=0.85),
-    "primary": RoadClass(saturation_flow=1800, green_ratio=0.45),
-    "primary_link": RoadClass(saturation_flow=1600, green_ratio=0.45),
-    "secondary": RoadClass(saturation_flow=1700, green_ratio=0.45),
-    "secondary_link": RoadClass(saturation_flow=1500, green_ratio=0.45),
-    "tertiary": RoadClass(saturation_flow=1600, green_ratio=0.40),
-    "tertiary_link": RoadClass(saturation_flow=1400, green_ratio=0.40),
-    "unclassified": RoadClass(saturation_flow=1400, green_ratio=0.35),
-    "residential": RoadClass(saturation_flow=1400, green_ratio=0.35),
-    "living_street": RoadClass(saturation_flow=900, green_ratio=0.30),
-    "service": RoadClass(saturation_flow=800, green_ratio=0.30),
+    "motorway": RoadClass(saturation_flow=2000, green_ratio=1.00, free_flow_kph=80),
+    "motorway_link": RoadClass(saturation_flow=1800, green_ratio=1.00, free_flow_kph=50),
+    "trunk": RoadClass(saturation_flow=1900, green_ratio=0.85, free_flow_kph=60),
+    "trunk_link": RoadClass(saturation_flow=1700, green_ratio=0.85, free_flow_kph=40),
+    "primary": RoadClass(saturation_flow=1800, green_ratio=0.45, free_flow_kph=50),
+    "primary_link": RoadClass(saturation_flow=1600, green_ratio=0.45, free_flow_kph=35),
+    "secondary": RoadClass(saturation_flow=1700, green_ratio=0.45, free_flow_kph=40),
+    "secondary_link": RoadClass(saturation_flow=1500, green_ratio=0.45, free_flow_kph=30),
+    "tertiary": RoadClass(saturation_flow=1600, green_ratio=0.40, free_flow_kph=35),
+    "tertiary_link": RoadClass(saturation_flow=1400, green_ratio=0.40, free_flow_kph=25),
+    "unclassified": RoadClass(saturation_flow=1400, green_ratio=0.35, free_flow_kph=30),
+    "residential": RoadClass(saturation_flow=1400, green_ratio=0.35, free_flow_kph=25),
+    "living_street": RoadClass(saturation_flow=900, green_ratio=0.30, free_flow_kph=15),
+    "service": RoadClass(saturation_flow=800, green_ratio=0.30, free_flow_kph=15),
 }
 
 STANDARD_LANE_WIDTH_M = 3.658
