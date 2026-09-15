@@ -139,6 +139,10 @@ class SlotLedger:
             key = (edge, window)
             self._load[key] = self._load.get(key, 0) + 1
 
+    def loads(self) -> Iterable[tuple[tuple[str, int], int]]:
+        """Every (segment, window) that carries at least one vehicle, and how many."""
+        return self._load.items()
+
     def entries_by_window(self, edge: str) -> dict[int, int]:
         return {w: n for (e, w), n in self._load.items() if e == edge}
 
