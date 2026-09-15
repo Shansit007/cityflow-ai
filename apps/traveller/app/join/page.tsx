@@ -34,7 +34,7 @@ export default async function JoinPage({
           recovery phrase and it is gone.
         </p>
 
-        <CityIdForm cityCode={city.code} cityName={city.name} />
+        <CityIdForm cityCode={city.code} />
       </div>
     </AppShell>
   );

@@ -23,13 +23,7 @@ function mint(cityCode: string): Credentials {
   };
 }
 
-export function CityIdForm({
-  cityCode,
-  cityName,
-}: {
-  cityCode: string;
-  cityName: string;
-}) {
+export function CityIdForm({ cityCode }: { cityCode: string }) {
   const router = useRouter();
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [typed, setTyped] = useState("");
@@ -91,9 +85,7 @@ export function CityIdForm({
   return (
     <div className="mt-8 space-y-6">
       <div>
-        <h2 className="text-sm font-medium text-[var(--ink-muted)]">
-          Your City ID for {cityName}
-        </h2>
+        <h2 className="text-sm font-medium text-[var(--ink-muted)]">Your City ID</h2>
         <p className="mt-1 font-mono text-xl tracking-wider">{credentials.cityId}</p>
       </div>
 
