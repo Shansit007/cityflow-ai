@@ -35,6 +35,14 @@ STAFF = [
 # The extract the engine loads, so seeded defects sit on roads that exist.
 BENGALURU = (77.54, 12.91, 77.68, 13.03)
 
+RESOLUTION_NOTES = [
+    "Filled and compacted. Surface level with the carriageway.",
+    "Patched as a temporary measure; this stretch is due for resurfacing.",
+    "Utility cut backfilled by the water board and reinstated.",
+    "Edge break repaired and the shoulder rebuilt.",
+    "Nothing found at the location. Likely a speed table reported as a defect.",
+]
+
 
 def b64(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
@@ -92,16 +100,18 @@ def seed_defects(cursor, crew: list[str], count: int, seed: int) -> None:
         confirmations = 2 + int(rng.betavariate(1.6, 3.0) * 14 * (0.4 + severity))
 
         status, assignee, resolved_at = life_stage(rng, crew, first_seen, now)
+        note = rng.choice(RESOLUTION_NOTES) if status == "resolved" else None
 
         cursor.execute(
             """
             INSERT INTO defect_reports (
                 city, location, severity, confirmations, evidence,
-                status, assigned_to, first_seen_at, resolved_at
+                status, assigned_to, first_seen_at, resolved_at,
+                resolution_note, resolved_by
             ) VALUES (
                 'BLR',
                 ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
-                %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
             """,
             (
@@ -114,6 +124,8 @@ def seed_defects(cursor, crew: list[str], count: int, seed: int) -> None:
                 assignee,
                 first_seen,
                 resolved_at,
+                note,
+                assignee if status == "resolved" else None,
             ),
         )
 
@@ -141,6 +153,11 @@ def life_stage(rng, crew, first_seen, now):
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--defects", type=int, default=180)
+    parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="Delete this city's existing demo defects first",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--database-url", default=os.environ.get("DATABASE_URL"))
     arguments = parser.parse_args()
@@ -153,9 +170,17 @@ def main() -> int:
         psycopg.connect(arguments.database_url) as connection,
         connection.cursor() as cursor,
     ):
+        if arguments.replace:
+            cursor.execute("DELETE FROM defect_reports WHERE city = 'BLR'")
+            print(f"Removed {cursor.rowcount} existing defects.", file=sys.stderr)
+
         cursor.execute("SELECT count(*) FROM defect_reports WHERE city = 'BLR'")
         if cursor.fetchone()[0] > 0:
-            print("BLR already has defect reports; nothing seeded.", file=sys.stderr)
+            print(
+                "BLR already has defect reports; nothing seeded. Pass --replace to "
+                "start over.",
+                file=sys.stderr,
+            )
             return 1
 
         staff = seed_staff(cursor)

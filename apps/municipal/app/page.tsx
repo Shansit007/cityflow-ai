@@ -3,13 +3,9 @@ import { AppShell } from "@cityflow/ui";
 
 import { QueueTable } from "@/components/queue-table";
 import { SignOut } from "@/components/sign-out";
-import {
-  DEFECT_STATUSES,
-  priorityThreshold,
-  queue,
-  queueMetrics,
-  type DefectStatus,
-} from "@/lib/defects";
+import { ThresholdControl } from "@/components/threshold-control";
+import { employees, priorityThreshold, queue, queueMetrics } from "@/lib/defects";
+import { DEFECT_STATUSES, type DefectStatus } from "@/lib/transitions";
 import { readSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -36,10 +32,11 @@ export default async function QueuePage({
     ? Math.min(Math.max(Number(params.severity), 0), 1)
     : 0;
 
-  const [threshold, metrics, defects] = await Promise.all([
+  const [threshold, metrics, defects, crew] = await Promise.all([
     priorityThreshold(session.city),
     queueMetrics(session.city),
     queue(session, { status, minSeverity }),
+    session.role === "head" ? employees(session.city) : Promise.resolve([]),
   ]);
 
   return (
@@ -116,14 +113,25 @@ export default async function QueuePage({
         </button>
       </form>
 
-      <p className="mt-6 text-xs text-[var(--ink-muted)]">
-        Priority is severity at or above {threshold.toFixed(2)}, set for {session.city} by
-        the head of road maintenance.
-      </p>
+      <div className="mt-6">
+        {session.role === "head" ? (
+          <ThresholdControl threshold={threshold} />
+        ) : (
+          <p className="text-xs text-[var(--ink-muted)]">
+            Priority is severity at or above {threshold.toFixed(2)}, set for{" "}
+            {session.city} by the head of road maintenance.
+          </p>
+        )}
+      </div>
 
       <div className="mt-3">
         {defects.length > 0 ? (
-          <QueueTable defects={defects} threshold={threshold} />
+          <QueueTable
+            defects={defects}
+            employees={crew}
+            role={session.role}
+            threshold={threshold}
+          />
         ) : (
           <EmptyQueue role={session.role} filtered={Boolean(status) || minSeverity > 0} />
         )}

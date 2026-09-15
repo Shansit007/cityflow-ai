@@ -1,16 +1,6 @@
 import { pool } from "./db";
 import type { StaffSession } from "./session";
-
-export const DEFECT_STATUSES = [
-  "reported",
-  "triaged",
-  "assigned",
-  "in_progress",
-  "resolved",
-  "rejected",
-] as const;
-
-export type DefectStatus = (typeof DEFECT_STATUSES)[number];
+import { statusesLeadingTo, TransitionRefused, type DefectStatus } from "./transitions";
 
 export interface DefectRow {
   id: string;
@@ -21,6 +11,7 @@ export interface DefectRow {
   lat: number;
   lon: number;
   assignee: string | null;
+  assigned_to: string | null;
 }
 
 export interface QueueMetrics {
@@ -99,6 +90,7 @@ export async function queue(
     `SELECT d.id, d.severity, d.status, d.confirmations, d.first_seen_at,
             ST_Y(d.location::geometry) AS lat,
             ST_X(d.location::geometry) AS lon,
+            d.assigned_to,
             u.display_name AS assignee
        FROM defect_reports d
        LEFT JOIN municipal_users u ON u.id = d.assigned_to
@@ -109,4 +101,111 @@ export async function queue(
   );
 
   return result.rows;
+}
+
+export interface Employee {
+  id: string;
+  display_name: string;
+}
+
+export async function employees(city: string): Promise<Employee[]> {
+  const result = await pool().query<Employee>(
+    `SELECT id, display_name
+       FROM municipal_users
+      WHERE city = $1 AND role = 'employee' AND active
+      ORDER BY display_name`,
+    [city],
+  );
+
+  return result.rows;
+}
+
+export async function setStatus(
+  session: StaffSession,
+  id: string,
+  to: DefectStatus,
+  note: string | null,
+): Promise<void> {
+  const from = statusesLeadingTo(session.role, to);
+
+  if (from.length === 0) {
+    throw new TransitionRefused(`A ${session.role} cannot move a defect to ${to}.`);
+  }
+  if (to === "resolved" && !note?.trim()) {
+    throw new TransitionRefused("A resolved defect needs a note saying what was done.");
+  }
+
+  const mine = session.role === "employee" ? "AND assigned_to = $5" : "";
+
+  const result = await pool().query(
+    `UPDATE defect_reports
+        SET status = $1,
+            resolution_note = CASE WHEN $1 = 'resolved' THEN $2 ELSE resolution_note END,
+            resolved_at = CASE WHEN $1 = 'resolved' THEN now() ELSE resolved_at END,
+            resolved_by = CASE WHEN $1 = 'resolved' THEN $5 ELSE resolved_by END
+      WHERE id = $3
+        AND city = $4
+        AND status = ANY($6::defect_status[])
+        ${mine}`,
+    [to, note?.trim() ?? null, id, session.city, session.userId, from],
+  );
+
+  if (result.rowCount === 0) {
+    throw new TransitionRefused("That defect has already moved on. Reload the queue.");
+  }
+}
+
+export async function assign(
+  session: StaffSession,
+  id: string,
+  employeeId: string | null,
+): Promise<void> {
+  if (session.role !== "head") {
+    throw new TransitionRefused("Only the head of road maintenance assigns work.");
+  }
+
+  const result = await pool().query(
+    `UPDATE defect_reports d
+        SET assigned_to = $1,
+            status = CASE
+              WHEN $1 IS NULL AND d.status = 'assigned' THEN 'triaged'::defect_status
+              WHEN $1 IS NOT NULL AND d.status IN ('reported', 'triaged')
+                THEN 'assigned'::defect_status
+              ELSE d.status
+            END
+      WHERE d.id = $2
+        AND d.city = $3
+        AND d.status NOT IN ('resolved', 'rejected')
+        AND ($1 IS NULL OR EXISTS (
+              SELECT 1 FROM municipal_users u
+               WHERE u.id = $1 AND u.city = d.city AND u.role = 'employee' AND u.active
+            ))`,
+    [employeeId, id, session.city],
+  );
+
+  if (result.rowCount === 0) {
+    throw new TransitionRefused("That defect cannot be assigned to that person.");
+  }
+}
+
+export async function setThreshold(
+  session: StaffSession,
+  threshold: number,
+): Promise<void> {
+  if (session.role !== "head") {
+    throw new TransitionRefused("Only the head of road maintenance sets the threshold.");
+  }
+  if (!(threshold >= 0 && threshold <= 1)) {
+    throw new TransitionRefused("The threshold is a severity between 0 and 1.");
+  }
+
+  await pool().query(
+    `INSERT INTO municipal_settings (city, priority_threshold, updated_by)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (city) DO UPDATE
+        SET priority_threshold = EXCLUDED.priority_threshold,
+            updated_by = EXCLUDED.updated_by,
+            updated_at = now()`,
+    [session.city, threshold, session.userId],
+  );
 }
