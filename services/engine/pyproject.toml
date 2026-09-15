@@ -23,6 +23,11 @@ dev = [
 sim = [
     "osmnx==2.1.1",
     "networkx==3.6.1",
+    # Used directly by build_scenario and build_demand to put the city's nodes and its
+    # employment districts in the same metric space. It arrived transitively through
+    # geopandas until an environment without geopandas found the scripts importing a
+    # package nothing declared.
+    "pyproj==3.8.0",
     "geopandas==1.1.4",
     "shapely==2.1.2",
     "pandas==3.0.5",

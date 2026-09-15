@@ -13,7 +13,7 @@ from pyproj import Transformer
 from app.logging import configure_logging
 from core.cities import City, get_city
 from sim.demand import Centre, Traveller, generate
-from sim.network import utm_epsg
+from sim.network import read_net_offset, utm_epsg
 from sim.trips import (
     DuarouterFailed,
     collect_endpoints,
@@ -44,15 +44,20 @@ def straight_line_stats(
     }
 
 
-def employment_centres(city: City) -> list[Centre]:
-    """The city's districts, projected into the metres the network is built in."""
+def employment_centres(city: City, net_file: Path) -> list[Centre]:
+    """The city's districts, in the same coordinates as the network's own streets."""
     transformer = Transformer.from_crs(
         "EPSG:4326", utm_epsg(city.centroid_lon, city.centroid_lat), always_xy=True
     )
-    return [
-        Centre(*transformer.transform(a.lon, a.lat), a.weight)
-        for a in city.attractors
-    ]
+    offset_x, offset_y = read_net_offset(net_file)
+
+    centres: list[Centre] = []
+    for attractor in city.attractors:
+        x, y = transformer.transform(attractor.lon, attractor.lat)
+        centres.append(Centre(x + offset_x, y + offset_y, attractor.weight))
+
+    return centres
+
 
 
 def destination_concentration(people: list[Traveller]) -> float:
@@ -100,7 +105,7 @@ def main() -> int:
         logger.error("too few candidate endpoints to build trips")
         return 1
 
-    centres = employment_centres(city)
+    centres = employment_centres(city, net_file)
     if not centres:
         logger.warning(
             "no employment districts for this city; demand will have no direction",

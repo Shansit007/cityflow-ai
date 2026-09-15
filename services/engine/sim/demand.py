@@ -203,6 +203,18 @@ class _Geography:
         self._origin: dict[bool, list[float]] = {}
         self._destination: dict[tuple[int, bool], list[float]] = {}
 
+        # Employment reaches every cell through exp(-distance), which is only zero
+        # everywhere if the districts are nowhere near the network. That means the two
+        # are in different coordinate systems, and it is worth saying so: sampling from
+        # an all-zero distribution otherwise fails much later as an index error, with
+        # nothing pointing at the cause.
+        if centres and not any(cell.employment > 0 for cell in self.cells):
+            raise ValueError(
+                "No employment district is near any street. The districts and the "
+                "network are probably in different coordinate systems - the network "
+                "stores its own netOffset, see sim.network.read_net_offset."
+            )
+
     def _mass(self, cell: _Cell, employment: bool) -> float:
         return cell.employment if employment else cell.residential
 
@@ -256,7 +268,13 @@ def _pull(x: float, y: float, centres: list[Centre]) -> float:
 
 
 def _pick(rng: random.Random, cumulative: list[float]) -> int:
-    return bisect_right(cumulative, rng.random() * cumulative[-1])
+    total = cumulative[-1]
+    if total <= 0:
+        raise ValueError("Cannot sample from a distribution with no mass.")
+
+    # min() rather than trusting the arithmetic: random() * total can round up to
+    # exactly total for a draw close to one, and bisect would then point past the end.
+    return min(bisect_right(cumulative, rng.random() * total), len(cumulative) - 1)
 
 
 def generate(

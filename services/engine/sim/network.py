@@ -26,6 +26,34 @@ PRIORITY = {
 }
 
 
+def read_net_offset(net_file: Path) -> tuple[float, float]:
+    """
+    The shift netconvert applied when it built this network.
+
+    build_scenario hands netconvert coordinates already projected into UTM, and
+    netconvert moves the whole network so its lowest corner sits near the origin. Every
+    coordinate inside city.net.xml is therefore UTM plus this offset, and anything
+    projected afterwards must have the same offset applied or it lands 1.4 million
+    metres from the roads.
+
+    That mistake is usually silent. Here it put every employment district so far from
+    every street that exp(-distance) underflowed to exactly zero, which left demand
+    generation sampling from an all-zero distribution. The network records the offset,
+    so there is no reason to recompute or assume it. projParameter cannot be used
+    instead: netconvert writes "!" for it, because as far as it knows the input was
+    already cartesian.
+    """
+    for _, element in ET.iterparse(net_file, events=("start",)):
+        if element.tag == "location":
+            offset = element.get("netOffset", "")
+            x, _, y = offset.partition(",")
+            return float(x), float(y)
+        if element.tag == "edge":
+            break
+
+    raise ValueError(f"{net_file} has no location element; it is not a SUMO network.")
+
+
 def utm_epsg(longitude: float, latitude: float) -> str:
     """SUMO works in metres, so geographic coordinates have to be projected first."""
     zone = int((longitude + 180) // 6) + 1

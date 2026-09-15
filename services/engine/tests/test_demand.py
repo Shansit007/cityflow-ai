@@ -283,3 +283,16 @@ def test_the_share_travelling_to_work_matches_the_morning_peak() -> None:
     share = sum(1 for p in people if p.to_work) / len(people)
 
     assert abs(share - MORNING.share) < 0.02
+
+
+def test_districts_nowhere_near_the_network_are_refused() -> None:
+    # The mistake this catches: the network stores its coordinates shifted by a
+    # netOffset, so a district projected to raw UTM sits over a million metres from
+    # every street. exp(-distance) underflows to zero for all of them, and without this
+    # check generation fails later as an index error that says nothing about why.
+    far_away = Centre(x=775_000, y=1_428_000, weight=1.0)
+
+    with pytest.raises(ValueError, match="coordinate systems"):
+        generate(
+            ENDPOINTS, count=10, seed=1, fleet=INDIAN_URBAN_PEAK, centres=[far_away]
+        )
