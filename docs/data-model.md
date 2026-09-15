@@ -62,6 +62,33 @@ immovable.
 
 ## What is not here yet
 
-`road_segments.capacity_vph` is a column with a `CHECK` and no population logic; the
-formula that fills it is Phase 2 and will be cited in `docs/engine.md`. Nothing writes
-`departure_slots` or `recommendations` yet either — the allocator is Phase 2.
+`road_segments.capacity_vph` is populated by `scripts/load_network.py` from the formula
+in `docs/engine.md`. `departure_slots` and `recommendations` are still unwritten: the
+allocator exists and is tested, but it runs over a simulated population held in memory
+rather than over trips in this database, and wiring it to real routines is what the
+Today screen is waiting on.
+
+## Tables added since
+
+**`municipal_settings`** (0005) holds one row per city: the severity at or above which
+a defect is flagged priority in the queue. It is a property of the city's current
+capacity to fix things, not of any defect, which is why it is not a column on
+`defect_reports` and why changing it re-labels the queue rather than re-scoring it.
+
+**`road_anomalies`** (0007) is the raw output of one traveller's phone: an exact point,
+a City ID, a magnitude and the features the detector computed. It is the only place in
+the traveller schema where an identity sits next to a precise location, it exists only
+until the reading has been aggregated into a `defect_report`, and
+`infra/prune_anomalies.sql` is what removes it. Deleting a City ID cascades here, making
+this the one table a traveller has anything to erase.
+
+`promote_anomalies()` is a function rather than application code because the rule it
+enforces — several independent identities before anything becomes a defect — is the same
+rule `defect_reports.confirmations` has a CHECK for. Both live in the database so that a
+second client, a script or a future migration cannot route around it.
+
+**`defect_reports.resolution_note` and `resolved_by`** (0006) were added because
+"resolved" on its own does not say whether the hole was filled, the road was resurfaced,
+or the crew found nothing there. The accompanying constraint is `NOT VALID`: defects
+resolved before that migration have no note, and there is no honest way to give them
+one.

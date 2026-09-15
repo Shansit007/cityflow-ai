@@ -68,3 +68,36 @@ Steps 3 and 4 are Phase 2 work. Steps 1 and 2 are what Phase 1 built the schema 
 
 The engine's free tier sleeps when idle, so `@cityflow/api-client` allows eight seconds
 for a cold start before giving up.
+
+## What the browser will not do
+
+Defect detection runs in a web page, not a native app, and that sets hard limits worth
+stating before someone measures against expectations the platform cannot meet.
+
+**iOS Safari requires an explicit grant.** `DeviceMotionEvent.requestPermission()` must
+be called from inside a user gesture handler, and there is no way to ask again silently
+if it is declined. Other browsers expose no such method, so the code feature-detects it
+rather than sniffing the platform.
+
+**Sampling is throttled, and not to a number the page chooses.** `devicemotion` is
+delivered well below the 50 Hz a dedicated sensor app can request — in practice around
+30 Hz on iOS — and is throttled further when the screen is off or the tab is in the
+background. Windows are therefore defined by duration rather than by a sample count, and
+the count a window actually received is recorded with its features so a low-rate
+recording can be told apart from a quiet road later.
+
+**Capture cannot leave the main thread.** `devicemotion` is a window event, so no worker
+can subscribe to it. The analysis could be moved to one, but it is a few hundred
+floating-point operations twice a second and moving it would mean copying every sample
+across a `postMessage` boundary for no gain. The main thread does both.
+
+**Accuracy depends on things the page cannot see.** A phone loose in a pocket measures
+the person; a phone in a windscreen cradle measures the vehicle's suspension; a scooter
+and a bus on the same road do not record the same thing. There is no calibration step
+and no attempt to infer the mount. This is the largest source of error in the severity
+figure, and the reason a defect needs several independent travellers before it is
+believed.
+
+**Position comes from a separate sensor with its own lag.** A jolt is placed at the
+nearest position fix in time, and one more than five seconds from any fix is discarded
+rather than guessed at: a defect report a crew cannot find is worse than no report.

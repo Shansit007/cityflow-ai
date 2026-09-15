@@ -79,3 +79,32 @@ the design, not a feature.
 
 The two datasets do not join. There is no foreign key between `municipal_users` and
 `city_identities`, and nothing in the municipal application reads traveller data.
+
+## The one place exact location is stored
+
+Everything a traveller saves about their own journeys is a six-character geohash cell,
+coarsened in the browser. Defect reporting is the exception and it is a real one.
+
+`road_anomalies` holds an exact coordinate next to a City ID. Together those say where
+somebody was at a moment, which is precisely what the rest of this schema is built to
+avoid. It is stored because a pothole has to be findable by a repair crew, and because
+placing a reading in a 1.2 km cell would make it useless for that.
+
+Three things limit the exposure, and none of them is encryption:
+
+- **It is opt-in and visible.** Nothing is recorded until the traveller starts a
+  recording, and the page says on it that exact position is sent for this feature.
+- **It is short-lived.** `infra/prune_anomalies.sql` deletes readings once they have
+  been aggregated into a defect, and deletes unaggregated ones after a fortnight. A
+  reading that never found a second witness is evidence of one person's journey and
+  nothing else.
+- **What survives is not attributable.** A `defect_report` carries a location and a
+  count of how many identities confirmed it, and no identity column. The link from a
+  defect back to the people who reported it is severed when the readings are pruned.
+
+What this does not protect against is unchanged from the rest of this document: a server
+operator who reads the table before it is pruned sees exact positions for a City ID, and
+a traveller who records their whole commute every day is producing a trace that would
+identify them to anyone holding it. The honest summary is that defect reporting is the
+least private thing CityFlow does, it is separable from the rest of the product, and
+somebody who does not want to do it should not turn it on.

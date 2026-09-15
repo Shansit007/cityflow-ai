@@ -251,3 +251,61 @@ wrong problem, so `teleports_by_cause` is now part of every result: a run failin
 
 A congested baseline is wanted. A broken-down one is not, because the treatment run has
 to be compared against it, and two gridlocks are not comparable.
+
+## Detecting road defects
+
+A phone in a moving vehicle is an accelerometer with a network connection. Two studies
+established that this is enough to find potholes and are the prior art here: MIT's
+**Pothole Patrol** (Eriksson et al., MobiSys 2008), which detects defects from vertical
+acceleration spikes gated on speed, and Microsoft Research India's **Nericell** (Mohan
+et al., SenSys 2008), which added braking and honking detection and handled the phone
+sitting at an arbitrary orientation. The design below follows both and departs from
+them where a browser forces it to.
+
+### Features
+
+Acceleration is reduced to the magnitude of the vector rather than its z component,
+which is what lets the phone ride in a pocket or a cradle at any angle. It costs the
+ability to separate a vertical jolt from a lateral swerve — a trade Nericell makes and
+documents too. Over a one-second window, stepped every half second:
+
+| Feature                              | What it separates                           |
+| ------------------------------------ | ------------------------------------------- |
+| variance of magnitude                | smooth tarmac from generally broken surface |
+| peak deviation from the window mean  | the size of the worst jolt                  |
+| mean squared sample-to-sample change | a step edge from a slow arc                 |
+
+The third is the one that earns its place. A speed bump and a pothole can produce the
+same peak acceleration; the bump is a smooth arc and the pothole edge is a step, and
+the squared difference between consecutive samples separates them. `tests/motion.test.ts`
+puts a synthetic bump and a synthetic pothole with identical peak height through the
+detector and requires that only one is reported. An FFT would be the textbook answer,
+but over a window of roughly thirty samples it would resolve almost nothing, so the
+cheap high-pass is not a compromise so much as the honest size of the data.
+
+Two gates reject a window before it is scored at all: below walking pace, picking a
+parked phone out of its cradle is indistinguishable from a crater; above about 80 km/h
+the vehicle is not on the kind of street this is for. A gated window returns no score
+rather than a low one, because "the vehicle was stopped" is not evidence about the road.
+
+### It is a threshold detector, not a model
+
+The thresholds are chosen to sit above ordinary Indian urban road roughness. They are
+not fitted, because there is no labelled Indian road data to fit them to, and a model
+trained on synthetic bumps would be a model of the generator. The feature extraction is
+the part a classifier would consume, so the thresholds can be replaced by a fitted model
+without changing anything around them. Calling this a classifier would be the single
+easiest thing in the repo to catch.
+
+### One phone is never a defect
+
+A reading is promoted into a defect report only when **independent City IDs** report
+within about 20 metres of each other, clustered with `ST_ClusterDBSCAN` in
+`promote_anomalies`. Independent identities, not readings: one traveller driving the
+same street twice a day is one opinion about it. This is what keeps a badly mounted
+phone and an unfamiliar speed table out of the municipal queue, and the schema enforces
+it — `defect_reports.confirmations` has a `CHECK (confirmations >= 2)`, so the rule
+cannot be skipped by a future second client.
+
+A cluster within 25 m of an existing open defect raises that defect's confirmation count
+instead of creating a second row, so one hole reported over a month is one queue entry.
