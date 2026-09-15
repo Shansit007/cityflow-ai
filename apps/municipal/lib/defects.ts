@@ -299,27 +299,35 @@ export async function assign(
   const userId = kind === "user" ? target : null;
   const teamId = kind === "team" ? target : null;
 
+  // Both targets are cast explicitly. Unassigning sends null for each, and a null
+  // parameter whose only other use is inside a CASE gives Postgres nothing to infer a
+  // type from; that fails when the statement is planned rather than as a constraint
+  // violation, so it surfaces as a fault and not as a refusal.
   const result = await pool().query(
-    `UPDATE defect_reports d
-        SET assigned_to = $1,
-            assigned_team = $2,
+    `UPDATE defect_reports
+        SET assigned_to = $1::uuid,
+            assigned_team = $2::uuid,
             status = CASE
-              WHEN $1 IS NULL AND $2 IS NULL AND d.status = 'assigned'
+              WHEN $1::uuid IS NULL AND $2::uuid IS NULL AND status = 'assigned'
                 THEN 'triaged'::defect_status
-              WHEN ($1 IS NOT NULL OR $2 IS NOT NULL)
-                AND d.status IN ('reported', 'triaged')
+              WHEN ($1::uuid IS NOT NULL OR $2::uuid IS NOT NULL)
+                AND status IN ('reported', 'triaged')
                 THEN 'assigned'::defect_status
-              ELSE d.status
+              ELSE status
             END
-      WHERE d.id = $3
-        AND d.city = $4
-        AND d.status NOT IN ('resolved', 'rejected')
-        AND ($1 IS NULL OR EXISTS (
+      WHERE id = $3::uuid
+        AND city = $4
+        AND status NOT IN ('resolved', 'rejected')
+        AND ($1::uuid IS NULL OR EXISTS (
               SELECT 1 FROM municipal_users u
-               WHERE u.id = $1 AND u.city = d.city AND u.role = 'employee' AND u.active
+               WHERE u.id = $1::uuid
+                 AND u.city = defect_reports.city
+                 AND u.role = 'employee'
+                 AND u.active
             ))
-        AND ($2 IS NULL OR EXISTS (
-              SELECT 1 FROM municipal_teams t WHERE t.id = $2 AND t.city = d.city
+        AND ($2::uuid IS NULL OR EXISTS (
+              SELECT 1 FROM municipal_teams t
+               WHERE t.id = $2::uuid AND t.city = defect_reports.city
             ))`,
     [userId, teamId, id, session.city],
   );

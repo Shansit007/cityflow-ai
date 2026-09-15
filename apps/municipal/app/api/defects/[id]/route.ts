@@ -54,6 +54,10 @@ export async function PATCH(
     if (error instanceof TransitionRefused) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
+
+    // Anything else is a fault, not a refusal. Logged with the defect it was about,
+    // because a bare 500 in a browser console says nothing a maintainer can act on.
+    console.error("defect patch failed", { id, error });
     throw error;
   }
 }

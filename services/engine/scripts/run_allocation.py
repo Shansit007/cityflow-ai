@@ -143,6 +143,12 @@ def main() -> int:
     parser.add_argument("--demand-share", type=float, default=1.0)
     parser.add_argument("--adoption", type=float, default=0.20)
     parser.add_argument("--out", default="scenarios", type=Path)
+    parser.add_argument(
+        "--results",
+        default=Path("../../docs/results"),
+        type=Path,
+        help="Where the committed copy of the metrics goes, for the docs to cite",
+    )
     arguments = parser.parse_args()
 
     configure_logging("INFO")
@@ -229,9 +235,17 @@ def main() -> int:
         "unknown_edges": allocation.unknown_edges,
         "written": written,
     }
-    (target / "allocation.metrics.json").write_text(
-        json.dumps(summary, indent=2, sort_keys=True)
-    )
+    rendered = json.dumps(summary, indent=2, sort_keys=True)
+
+    # Two copies on purpose. scenarios/ is gitignored because it holds hundreds of
+    # megabytes of routes and networks, so a result left only there is a number nobody
+    # else can check. The second copy is small, committed, and is what docs/engine.md
+    # quotes: every figure in the documentation should be reproducible by re-running
+    # one command and diffing this file.
+    (target / "allocation.metrics.json").write_text(rendered)
+
+    arguments.results.mkdir(parents=True, exist_ok=True)
+    (arguments.results / f"allocation-{city.code.lower()}.json").write_text(rendered)
 
     logger.info("allocation complete", extra=summary)
     return 0

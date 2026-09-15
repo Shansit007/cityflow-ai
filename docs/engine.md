@@ -309,3 +309,99 @@ cannot be skipped by a future second client.
 
 A cluster within 25 m of an existing open defect raises that defect's confirmation count
 instead of creating a second row, so one hole reported over a month is one queue entry.
+
+## The departure-slot allocator
+
+This is the part the project exists for. Everything above it — capacity, the fleet, the
+demand model — is there so that this has something true to work against.
+
+### Why it is not "the best time to leave"
+
+The obvious design computes each traveller's best departure independently. It does not
+work, and the reason is not subtle: if five hundred people are each told the same quiet
+moment, that moment stops being quiet. The trough becomes the peak.
+
+`allocate_independently` in `core/allocator.py` implements exactly that mistake, not as
+an option but so it can be measured. It costs every traveller against a frozen picture
+of today's traffic and never feeds their choices back, which is what any system does
+when it answers each user's question on its own.
+
+### What it does instead
+
+A trip is not a point in time. It is a path through (segment, fifteen-minute window)
+pairs: departing at _t_ means loading edge _e_ during the window containing _t + offset(e)_.
+So this is capacity-constrained assignment over a shared resource, not scheduling.
+
+Background first. Non-participants and anyone with no slack are committed at their
+habitual departure before the allocator places anybody, because at the default 70%
+non-participation that is most of the road, it is fixed, and a system that assumed
+otherwise would be measuring a city it does not live in.
+
+Then each movable trip is costed over the five-minute departures inside its flexibility:
+
+```
+cost(trip, t) = deviation_minutes x (1 + w_fair x cumulative_shift / 60 min)
+              + w_cong x Σ over (segment, window) on path of Δ(excess²)
+```
+
+Three things in that line are deliberate.
+
+**Capacity is a penalty, not a constraint.** Background load alone can already exceed
+capacity on some segments. A hard constraint would make the problem infeasible exactly
+where it matters most, and the allocator would have nothing to say about the worst
+roads in the city.
+
+**The penalty is quadratic in excess.** A linear one is flat above capacity — every
+vehicle past the limit costs the same — so once every window a traveller can reach is
+full, the congestion term stops discriminating and deviation alone decides. That sends
+everyone back to their preferred time and rebuilds the peak. A test caught this: 100
+travellers on a segment with room for 20 per window came out as 80 in one window. With
+squared excess the same scenario spreads to 21/21/22/21/15.
+
+**Fairness multiplies deviation rather than adding to it.** A traveller carrying an hour
+of accumulated shift finds every further minute twice as expensive, so the allocator
+stops converging on the same flexible people every morning. Multiplying means a
+traveller at zero deviation still pays nothing however often they have been moved
+before: a shift history can change who is asked to move, never make it attractive to
+move somebody who does not need to.
+
+Trips are placed in descending order of **regret** — best cost minus second-best — so a
+traveller with one workable slot chooses before one who is nearly indifferent. Regret is
+recomputed when a trip is popped, because committing one trip changes it for others.
+
+### Measured
+
+Bengaluru, 08:00–10:00, 61,866 journeys, 20% adoption. Reproduce with
+`scripts/run_allocation.py --city BLR --demand-share 1.0 --adoption 0.20`; the numbers
+below are `docs/results/allocation-blr.json` and nothing else in this repo restates them
+by hand.
+
+|                             | overloaded segment-windows | vehicles over capacity |
+| --------------------------- | -------------------------- | ---------------------- |
+| nobody shifts               | 94                         | 5,115                  |
+| **coordinated allocation**  | **71**                     | **2,646**              |
+| independent per-user advice | 78                         | 4,476                  |
+
+Coordinated allocation removes **48% of the over-capacity vehicles**. Telling each
+traveller their own best time removes 12.5%.
+
+The efficiency gap is wider than the headline. Coordination shifted 1,498 travellers by
+15.9 minutes on average and the naive design shifted 897 by 14.5. Per person actually
+inconvenienced, coordination removes 1.65 vehicles of excess against 0.71 — **2.3 times
+more benefit for each traveller asked to change their morning**. Only 9,208 of the
+61,866 journeys were movable at all; the other 85% are non-participants and people with
+no slack, and the allocator planned around them rather than assuming them away.
+
+### What this measurement is not
+
+It is excess over modelled capacity, not delay. Removing 48% of over-capacity vehicles
+is not a claim that anybody's journey got 48% shorter, and the two are not proportional
+— congestion responds non-linearly to load, which cuts both ways. Turning this into a
+figure in minutes requires simulating the allocated departures against the baseline in
+SUMO, which `run_allocation.py` already writes the scenario for.
+
+Offsets along a path come from free-flow traversal times, so the allocator's view of
+when a trip reaches the far end of its route is optimistic under congestion. It errs in
+a known direction and the alternative is circular: how long a journey takes depends on
+the departure times being chosen. Replacing it needs measured per-interval edge speeds
+from the baseline run.
