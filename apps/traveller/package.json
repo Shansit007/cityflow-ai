@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@cityflow/api-client": "workspace:*",
+    "@cityflow/secrets": "workspace:*",
     "@cityflow/ui": "workspace:*",
     "jose": "5.9.6",
     "next": "16.3.4",

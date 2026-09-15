@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { pool } from "@/lib/db";
-import { verifyRecoveryCode } from "@/lib/recovery";
+import { verifySecret } from "@cityflow/secrets";
 import { clearSession, issueSession } from "@/lib/session";
 import { isValidCityId, normaliseRecoveryCode } from "@/lib/city-id";
 
@@ -39,7 +39,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json(REJECTED, { status: 401 });
   }
 
-  const matches = await verifyRecoveryCode(
+  const matches = await verifySecret(
     normaliseRecoveryCode(recoveryCode),
     row.recovery_hash,
   );

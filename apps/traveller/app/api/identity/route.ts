@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { pool } from "@/lib/db";
-import { hashRecoveryCode } from "@/lib/recovery";
+import { hashSecret } from "@cityflow/secrets";
 import { issueSession } from "@/lib/session";
 import { CITY_CODE_PATTERN, isValidCityId, isValidRecoveryCode } from "@/lib/city-id";
 
@@ -41,7 +41,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const recoveryHash = await hashRecoveryCode(parsed.recoveryCode);
+  const recoveryHash = await hashSecret(parsed.recoveryCode);
 
   try {
     const result = await pool().query<{ id: string }>(

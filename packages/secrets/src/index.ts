@@ -8,16 +8,25 @@ const p = 1;
 const KEY_LENGTH = 32;
 const SALT_LENGTH = 16;
 
+/**
+ * Password hashing for both deployed apps.
+ *
+ * A traveller's recovery phrase and a council employee's password are different
+ * things socially and identical cryptographically, and two copies of a scrypt
+ * implementation is one copy too many: the one that gets its cost parameters raised
+ * is never the one that needed it.
+ */
+
 // promisify() picks scrypt's three-argument overload and drops the one that takes
 // options, so the cost parameters are passed through an explicit wrapper instead.
 function deriveKey(
-  code: string,
+  secret: string,
   salt: Buffer,
   keyLength: number,
   options: ScryptOptions,
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    scrypt(code, salt, keyLength, options, (error, key) => {
+    scrypt(secret, salt, keyLength, options, (error, key) => {
       if (error) reject(error);
       else resolve(key);
     });
@@ -29,9 +38,9 @@ function deriveKey(
  * parameters in the string means raising the cost later does not invalidate hashes
  * written under the old one.
  */
-export async function hashRecoveryCode(code: string): Promise<string> {
+export async function hashSecret(secret: string): Promise<string> {
   const salt = randomBytes(SALT_LENGTH);
-  const key = await deriveKey(code, salt, KEY_LENGTH, { N, r, p });
+  const key = await deriveKey(secret, salt, KEY_LENGTH, { N, r, p });
 
   return [
     "",
@@ -42,7 +51,7 @@ export async function hashRecoveryCode(code: string): Promise<string> {
   ].join("$");
 }
 
-export async function verifyRecoveryCode(code: string, stored: string): Promise<boolean> {
+export async function verifySecret(secret: string, stored: string): Promise<boolean> {
   const parts = stored.split("$");
   if (parts.length !== 5 || parts[1] !== "scrypt") return false;
 
@@ -55,7 +64,7 @@ export async function verifyRecoveryCode(code: string, stored: string): Promise<
   // out of a function whose whole contract is to return false instead.
   if (expected.length === 0) return false;
 
-  const actual = await deriveKey(code, salt, expected.length, options);
+  const actual = await deriveKey(secret, salt, expected.length, options);
 
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }

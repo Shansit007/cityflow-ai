@@ -5,10 +5,18 @@ export interface AppShellProps {
   /** Distinguishes the two deployed surfaces in the header, e.g. "Municipal". */
   surface?: string;
   nav?: ReactNode;
+  /** The two deployed surfaces make different promises, so they say different things. */
+  footnote?: ReactNode;
   children: ReactNode;
 }
 
-export function AppShell({ productName, surface, nav, children }: AppShellProps) {
+export function AppShell({
+  productName,
+  surface,
+  nav,
+  footnote,
+  children,
+}: AppShellProps) {
   return (
     <div className="flex min-h-dvh flex-col bg-[var(--surface)] text-[var(--ink)]">
       <header className="border-b border-[var(--line)]">
@@ -27,7 +35,7 @@ export function AppShell({ productName, surface, nav, children }: AppShellProps)
 
       <footer className="border-t border-[var(--line)]">
         <div className="mx-auto w-full max-w-5xl px-4 py-6 text-xs text-[var(--ink-muted)]">
-          Open source. Departure times are advisory and never mandatory.
+          {footnote ?? "Open source. Departure times are advisory and never mandatory."}
         </div>
       </footer>
     </div>

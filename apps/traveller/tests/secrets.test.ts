@@ -1,20 +1,20 @@
 import { generateRecoveryCode } from "@/lib/city-id";
-import { hashRecoveryCode, verifyRecoveryCode } from "@/lib/recovery";
+import { hashSecret, verifySecret } from "@cityflow/secrets";
 
-describe("recovery code hashing", () => {
+describe("secret hashing", () => {
   it("verifies the code it was derived from", async () => {
     const code = generateRecoveryCode();
-    expect(await verifyRecoveryCode(code, await hashRecoveryCode(code))).toBe(true);
+    expect(await verifySecret(code, await hashSecret(code))).toBe(true);
   });
 
   it("rejects a different code", async () => {
-    const stored = await hashRecoveryCode(generateRecoveryCode());
-    expect(await verifyRecoveryCode(generateRecoveryCode(), stored)).toBe(false);
+    const stored = await hashSecret(generateRecoveryCode());
+    expect(await verifySecret(generateRecoveryCode(), stored)).toBe(false);
   });
 
   it("salts, so the same code hashes differently every time", async () => {
     const code = generateRecoveryCode();
-    expect(await hashRecoveryCode(code)).not.toBe(await hashRecoveryCode(code));
+    expect(await hashSecret(code)).not.toBe(await hashSecret(code));
   });
 
   it("rejects a stored value that is not a scrypt hash instead of throwing", async () => {
@@ -26,7 +26,7 @@ describe("recovery code hashing", () => {
       "plaintext",
       "$scrypt$N=16384,r=8,p=1$c2FsdA$",
     ]) {
-      expect(await verifyRecoveryCode(code, stored)).toBe(false);
+      expect(await verifySecret(code, stored)).toBe(false);
     }
   });
 });
