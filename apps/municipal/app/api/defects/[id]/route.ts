@@ -21,15 +21,15 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const { assignedTo, status, note } = (body ?? {}) as Record<string, unknown>;
+  const { assignee, status, note } = (body ?? {}) as Record<string, unknown>;
 
   try {
-    if (assignedTo !== undefined) {
-      if (assignedTo !== null && typeof assignedTo !== "string") {
+    if (assignee !== undefined) {
+      if (assignee !== null && typeof assignee !== "string") {
         return NextResponse.json({ error: "Assign to whom?" }, { status: 400 });
       }
-      await assign(session, id, assignedTo);
-      return NextResponse.json({ id, assignedTo });
+      await assign(session, id, assignee);
+      return NextResponse.json({ id, assignee });
     }
 
     if (typeof status === "string") {

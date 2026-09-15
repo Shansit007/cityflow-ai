@@ -103,6 +103,11 @@ BEGIN
     IF severity <> 0.930 THEN
         RAISE EXCEPTION 'severity should rise to the new mean 0.930, got %', severity;
     END IF;
+
+    -- first_seen_at anchors time-to-resolve and must not move; last_seen_at must.
+    IF (SELECT last_seen_at <= first_seen_at FROM defect_reports WHERE city = 'BLR') THEN
+        RAISE EXCEPTION 'a later sighting should advance last_seen_at only';
+    END IF;
 END;
 $$;
 

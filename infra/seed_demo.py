@@ -1,8 +1,8 @@
 """Fill an empty database with a municipal queue worth looking at.
 
-Everything written here is invented. It exists so the dashboard can be reviewed
-without waiting for real travellers to drive over real potholes, and every row is
-reproducible from the seed below.
+Everything written here is invented. It exists so the dashboard can be reviewed without
+waiting for real travellers to drive over real potholes, and every row is reproducible
+from the seed below.
 """
 
 import argparse
@@ -25,15 +25,60 @@ SALT_LENGTH = 16
 
 DEMO_PASSWORD = "cityflow-demo"
 
+TEAMS = [
+    "North Zone Team",
+    "Central Zone Team",
+    "South Zone Team",
+    "Emergency Road Team",
+]
+
+# email, display name, role, job title, team
 STAFF = [
-    ("head@blr.cityflow.example", "Asha Rao", "head"),
-    ("crew1@blr.cityflow.example", "Vikram Shetty", "employee"),
-    ("crew2@blr.cityflow.example", "Nadia Fernandes", "employee"),
-    ("crew3@blr.cityflow.example", "Joseph Mathew", "employee"),
+    ("head@blr.cityflow.example", "Asha Rao", "head", "Head of Road Maintenance", None),
+    (
+        "rajesh@blr.cityflow.example",
+        "Rajesh Sharma",
+        "employee",
+        "Road Inspection Officer",
+        "North Zone Team",
+    ),
+    (
+        "amit@blr.cityflow.example",
+        "Amit Verma",
+        "employee",
+        "Field Engineer",
+        "Central Zone Team",
+    ),
+    (
+        "priya@blr.cityflow.example",
+        "Priya Singh",
+        "employee",
+        "Road Maintenance Officer",
+        "South Zone Team",
+    ),
+    (
+        "vikram@blr.cityflow.example",
+        "Vikram Patel",
+        "employee",
+        "Field Supervisor",
+        "Central Zone Team",
+    ),
+    (
+        "neha@blr.cityflow.example",
+        "Neha Tiwari",
+        "employee",
+        "Junior Engineer",
+        "South Zone Team",
+    ),
 ]
 
 # The extract the engine loads, so seeded defects sit on roads that exist.
 BENGALURU = (77.54, 12.91, 77.68, 13.03)
+
+# BBMP divides Bengaluru into 198 numbered wards. No boundary set is loaded, so a ward
+# here is a number drawn at random rather than the ward the point really falls in, and
+# the dashboard says so where it shows the column.
+WARD_COUNT = 198
 
 RESOLUTION_NOTES = [
     "Filled and compacted. Surface level with the carriageway.",
@@ -42,6 +87,8 @@ RESOLUTION_NOTES = [
     "Edge break repaired and the shoulder rebuilt.",
     "Nothing found at the location. Likely a speed table reported as a defect.",
 ]
+
+CONFIRMATION_THRESHOLD = 20
 
 
 def b64(raw: bytes) -> str:
@@ -67,26 +114,83 @@ def evidence(rng: random.Random, severity: float) -> dict:
     }
 
 
-def seed_staff(cursor) -> dict[str, str]:
+def confirmations_for(rng: random.Random, severity: float) -> int:
+    """
+    How many independent travellers registered this defect.
+
+    Heavy-tailed on purpose. Most holes are hit by a handful of people and a few on a
+    main road are hit by hundreds, and a confirmation threshold only means anything
+    against a spread like that: a distribution clustered around ten makes every
+    threshold either catch everything or nothing.
+    """
+    drawn = rng.lognormvariate(2.3, 1.2) * (0.45 + severity)
+    return min(400, 2 + int(drawn))
+
+
+def seed_teams(cursor) -> dict[str, str]:
     ids: dict[str, str] = {}
 
-    for email, name, role in STAFF:
+    for name in TEAMS:
         cursor.execute(
             """
-            INSERT INTO municipal_users (city, email, password_hash, display_name, role)
-            VALUES ('BLR', %s, %s, %s, %s)
-            ON CONFLICT (city, email) DO UPDATE
-                SET display_name = EXCLUDED.display_name, role = EXCLUDED.role
+            INSERT INTO municipal_teams (city, name) VALUES ('BLR', %s)
+            ON CONFLICT (city, name) DO UPDATE SET name = EXCLUDED.name
             RETURNING id
             """,
-            (email, hash_secret(DEMO_PASSWORD), name, role),
+            (name,),
+        )
+        ids[name] = cursor.fetchone()[0]
+
+    return ids
+
+
+def seed_staff(cursor, teams: dict[str, str]) -> dict[str, str]:
+    ids: dict[str, str] = {}
+
+    for email, name, role, title, team in STAFF:
+        cursor.execute(
+            """
+            INSERT INTO municipal_users
+                (city, email, password_hash, display_name, role, job_title, team_id)
+            VALUES ('BLR', %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (city, email) DO UPDATE
+                SET display_name = EXCLUDED.display_name,
+                    role = EXCLUDED.role,
+                    job_title = EXCLUDED.job_title,
+                    team_id = EXCLUDED.team_id
+            RETURNING id
+            """,
+            (email, hash_secret(DEMO_PASSWORD), name, role, title, teams.get(team)),
         )
         ids[email] = cursor.fetchone()[0]
 
     return ids
 
 
-def seed_defects(cursor, crew: list[str], count: int, seed: int) -> None:
+def life_stage(rng, crew, team_ids, first_seen, now):
+    """Where a defect has got to, who has it, and when it was closed."""
+    roll = rng.random()
+
+    if roll < 0.28:
+        return "reported", None, None, None
+    if roll < 0.40:
+        return "triaged", None, None, None
+    if roll < 0.50:
+        return "assigned", rng.choice(crew), None, None
+    if roll < 0.56:
+        # Work goes to a crew as often as to a named person.
+        return "assigned", None, rng.choice(team_ids), None
+    if roll < 0.68:
+        return "in_progress", rng.choice(crew), None, None
+    if roll < 0.95:
+        span = (now - first_seen).total_seconds()
+        resolved = first_seen + timedelta(seconds=rng.uniform(0.2, 0.95) * span)
+        return "resolved", rng.choice(crew), None, resolved
+
+    return "rejected", None, None, None
+
+
+def seed_defects(cursor, crew: list[str], team_ids: list[str], count: int, seed: int):
     rng = random.Random(seed)
     west, south, east, north = BENGALURU
     now = datetime.now(UTC)
@@ -95,59 +199,46 @@ def seed_defects(cursor, crew: list[str], count: int, seed: int) -> None:
         severity = round(min(0.99, max(0.05, rng.betavariate(2.2, 3.0))), 3)
         first_seen = now - timedelta(days=rng.randint(0, 120), hours=rng.randint(0, 23))
 
-        # A severe defect is confirmed by more people because more people hit it, and
-        # the aggregation rule needs at least two independent reports either way.
-        confirmations = 2 + int(rng.betavariate(1.6, 3.0) * 14 * (0.4 + severity))
-
-        status, assignee, resolved_at = life_stage(rng, crew, first_seen, now)
+        status, assignee, team, resolved_at = life_stage(
+            rng, crew, team_ids, first_seen, now
+        )
         note = rng.choice(RESOLUTION_NOTES) if status == "resolved" else None
+
+        # A defect stops being hit once it is fixed; an open one is still being hit.
+        latest = resolved_at or now
+        last_seen = first_seen + timedelta(
+            seconds=rng.uniform(0, (latest - first_seen).total_seconds())
+        )
 
         cursor.execute(
             """
             INSERT INTO defect_reports (
                 city, location, severity, confirmations, evidence,
-                status, assigned_to, first_seen_at, resolved_at,
-                resolution_note, resolved_by
+                status, assigned_to, assigned_team, ward,
+                first_seen_at, last_seen_at, resolved_at, resolution_note, resolved_by
             ) VALUES (
                 'BLR',
                 ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
-                %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
             """,
             (
                 round(rng.uniform(west, east), 6),
                 round(rng.uniform(south, north), 6),
                 severity,
-                confirmations,
+                confirmations_for(rng, severity),
                 json.dumps(evidence(rng, severity)),
                 status,
                 assignee,
+                team,
+                rng.randint(1, WARD_COUNT),
                 first_seen,
+                last_seen,
                 resolved_at,
                 note,
                 assignee if status == "resolved" else None,
             ),
         )
-
-
-def life_stage(rng, crew, first_seen, now):
-    """Where a defect has got to, and who has it."""
-    roll = rng.random()
-
-    if roll < 0.28:
-        return "reported", None, None
-    if roll < 0.40:
-        return "triaged", None, None
-    if roll < 0.55:
-        return "assigned", rng.choice(crew), None
-    if roll < 0.68:
-        return "in_progress", rng.choice(crew), None
-    if roll < 0.95:
-        span = (now - first_seen).total_seconds()
-        resolved = first_seen + timedelta(seconds=rng.uniform(0.2, 0.95) * span)
-        return "resolved", rng.choice(crew), resolved
-
-    return "rejected", None, None
 
 
 def main() -> int:
@@ -183,21 +274,28 @@ def main() -> int:
             )
             return 1
 
-        staff = seed_staff(cursor)
-        crew = [staff[email] for email, _, role in STAFF if role == "employee"]
-        seed_defects(cursor, crew, arguments.defects, arguments.seed)
+        teams = seed_teams(cursor)
+        staff = seed_staff(cursor, teams)
+        crew = [staff[email] for email, _, role, _, _ in STAFF if role == "employee"]
+        seed_defects(
+            cursor, crew, list(teams.values()), arguments.defects, arguments.seed
+        )
 
         cursor.execute(
             """
-            INSERT INTO municipal_settings (city, priority_threshold, updated_by)
-            VALUES ('BLR', 0.600, %s)
-            ON CONFLICT (city) DO NOTHING
+            INSERT INTO municipal_settings (city, confirmation_threshold, updated_by)
+            VALUES ('BLR', %s, %s)
+            ON CONFLICT (city) DO UPDATE
+                SET confirmation_threshold = EXCLUDED.confirmation_threshold
             """,
-            (staff[STAFF[0][0]],),
+            (CONFIRMATION_THRESHOLD, staff[STAFF[0][0]]),
         )
         connection.commit()
 
-    print(f"Seeded {len(STAFF)} staff accounts and {arguments.defects} defects for BLR.")
+    print(
+        f"Seeded {len(TEAMS)} teams, {len(STAFF)} staff accounts "
+        f"and {arguments.defects} defects for BLR."
+    )
     print(f"Sign in as {STAFF[0][0]} with password {DEMO_PASSWORD}")
     return 0
 

@@ -3,26 +3,37 @@
 
 /*
  * Deliberately not the traveller app. This is an internal tool used for a whole shift
- * on a desk monitor: cooler neutrals, a blue accent rather than green, a tighter
- * radius, and no photography anywhere. Somebody switching between the two sites should
- * never be in doubt about which one they are looking at.
+ * on a desk monitor, and it borrows the visual language Indian civic systems already
+ * use: navy chrome, a saffron accent kept for emphasis rather than decoration, and a
+ * green reserved for confirmed states. Denser type, tighter radii, no photography.
+ * Somebody switching between the two sites should never be in doubt which they are on.
  */
 :root {
-  --surface: #f4f6f8;
+  --navy: #0b3d66;
+  --navy-dark: #082a47;
+  --saffron: #ff9933;
+  --confirm: #128807;
+
+  --surface: #eef2f6;
   --surface-raised: #ffffff;
-  --surface-sunken: #e8ecf0;
-  --ink: #11161c;
-  --ink-muted: #56616d;
-  --ink-faint: #8794a1;
-  --line: #d3dae1;
-  --line-strong: #b4bfca;
-  --accent: #1f4e79;
+  --surface-sunken: #e2e8ef;
+  --ink: #1b2733;
+  --ink-muted: #5b6b7a;
+  --ink-faint: #7c8995;
+  --line: #d7dee6;
+  --line-strong: #aebfce;
+  --accent: var(--navy);
   --accent-ink: #ffffff;
   --accent-wash: #e6eef6;
-  --warn: #8a4b12;
-  --radius: 0.375rem;
+  --warn: #c62f1d;
+  --caution: #b4690e;
+  --radius: 0.4rem;
 }
 
+/*
+ * Dark mode inverts the page but not the chrome: the sidebar is navy in both, because
+ * it is the one thing on screen that says which system this is.
+ */
 @media (prefers-color-scheme: dark) {
   :root {
     --surface: #0d1116;
@@ -36,7 +47,9 @@
     --accent: #5a9bd4;
     --accent-ink: #06121d;
     --accent-wash: #15212c;
-    --warn: #d09a5c;
+    --warn: #e2705f;
+    --caution: #d09a5c;
+    --confirm: #4caf50;
   }
 }
 
@@ -57,7 +70,7 @@ body {
 }
 
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--saffron);
   outline-offset: 2px;
   border-radius: 3px;
 }

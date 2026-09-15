@@ -16,8 +16,11 @@ export async function PUT(request: Request): Promise<NextResponse> {
   }
 
   const { threshold } = (body ?? {}) as Record<string, unknown>;
-  if (typeof threshold !== "number" || !Number.isFinite(threshold)) {
-    return NextResponse.json({ error: "A threshold is a number." }, { status: 400 });
+  if (typeof threshold !== "number" || !Number.isInteger(threshold)) {
+    return NextResponse.json(
+      { error: "A threshold is a whole number of confirmations." },
+      { status: 400 },
+    );
   }
 
   try {
