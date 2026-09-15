@@ -60,7 +60,7 @@ export default async function QueuePage({
       <h1 className="text-xl font-semibold tracking-tight">Road defect queue</h1>
 
       <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius)] border border-[var(--line)] bg-[var(--line)] sm:grid-cols-4">
-        <Metric label="Open" value={String(metrics.open)} />
+        <Metric label="Open" value={String(metrics.open_count)} />
         <Metric label="Awaiting assignment" value={String(metrics.unassigned)} />
         <Metric label="Reported this month" value={String(metrics.this_month)} />
         <Metric

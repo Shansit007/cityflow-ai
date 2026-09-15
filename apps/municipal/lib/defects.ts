@@ -24,7 +24,7 @@ export interface DefectRow {
 }
 
 export interface QueueMetrics {
-  open: number;
+  open_count: number;
   unassigned: number;
   this_month: number;
   median_resolve_seconds: number | null;
@@ -52,7 +52,8 @@ export async function priorityThreshold(city: string): Promise<number> {
 export async function queueMetrics(city: string): Promise<QueueMetrics> {
   const result = await pool().query<QueueMetrics>(
     `SELECT
-       count(*) FILTER (WHERE status NOT IN ('resolved', 'rejected'))::int AS open,
+       count(*) FILTER (WHERE status NOT IN ('resolved', 'rejected'))::int
+         AS open_count,
        count(*) FILTER (
          WHERE status IN ('reported', 'triaged') AND assigned_to IS NULL
        )::int AS unassigned,
@@ -79,7 +80,7 @@ export async function queue(
   session: StaffSession,
   filter: QueueFilter,
 ): Promise<DefectRow[]> {
-  const conditions = ["d.city = $1", "d.severity >= $2"];
+  const conditions = ["d.city = $1", "d.severity >= $2::numeric"];
   const values: unknown[] = [session.city, filter.minSeverity];
 
   if (filter.status) {

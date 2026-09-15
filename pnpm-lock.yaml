@@ -32,12 +32,21 @@ importers:
       '@cityflow/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@cityflow/secrets':
+        specifier: workspace:*
+        version: link:../../packages/secrets
       '@cityflow/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      jose:
+        specifier: 5.9.6
+        version: 5.9.6
       next:
         specifier: 16.3.4
         version: 16.3.4(@babel/core@7.29.7)(@types/node@22.10.7)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      pg:
+        specifier: ^8.13.1
+        version: 8.23.0
       react:
         specifier: ^19.2.0
         version: 19.3.0
@@ -51,6 +60,9 @@ importers:
       '@types/node':
         specifier: 22.10.7
         version: 22.10.7
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.23.1
       '@types/react':
         specifier: ^19.2.0
         version: 19.3.0
@@ -72,6 +84,9 @@ importers:
       '@cityflow/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@cityflow/secrets':
+        specifier: workspace:*
+        version: link:../../packages/secrets
       '@cityflow/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -130,6 +145,15 @@ importers:
 
   packages/api-client:
     devDependencies:
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+
+  packages/secrets:
+    devDependencies:
+      '@types/node':
+        specifier: 22.10.7
+        version: 22.10.7
       typescript:
         specifier: 5.7.3
         version: 5.7.3

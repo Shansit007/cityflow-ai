@@ -10,7 +10,11 @@ export default async function LoginPage() {
   if (await readSession()) redirect("/");
 
   return (
-    <AppShell productName="CityFlow AI" surface="Municipal">
+    <AppShell
+      productName="CityFlow AI"
+      surface="Municipal"
+      footnote="Council staff accounts. Traveller identities are anonymous by design; these are not."
+    >
       <div className="mx-auto max-w-sm">
         <h1 className="text-xl font-semibold tracking-tight">Staff sign in</h1>
         <p className="mt-2 text-sm text-[var(--ink-muted)]">
