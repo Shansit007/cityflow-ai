@@ -71,12 +71,17 @@ def load_journeys(
     }
 
     journeys: list[Journey] = []
+    routed = 0
 
     for _, element in ET.iterparse(target / "baseline.rou.xml", events=("end",)):
+        # Only vehicles are cleared, never their children. A <route>'s end event fires
+        # before its parent vehicle's, so clearing it here strips the edges attribute
+        # the vehicle is about to be asked for, and every journey comes back with an
+        # empty path - silently, because an empty path is a valid thing to skip.
         if element.tag != "vehicle":
-            element.clear()
             continue
 
+        routed += 1
         person = people.get(element.get("id", ""))
         route = element.find("route")
 
@@ -95,6 +100,13 @@ def load_journeys(
                 )
 
         element.clear()
+
+    if people and not journeys:
+        raise ValueError(
+            f"{len(people)} travellers depart in this window but none of the "
+            f"{routed} routed vehicles matched one with a path. The population and "
+            f"the route file are probably from different runs of build_demand."
+        )
 
     return journeys
 
