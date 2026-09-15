@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ConfirmationBadge, PriorityBadge } from "@/components/badges";
+import { DefectMap } from "@/components/defect-map";
 import { Kpi, Panel } from "@/components/panel";
 import { Shell } from "@/components/shell";
 import { confirmationOf, priorityOf } from "@/lib/classify";
@@ -18,10 +19,14 @@ function resolveTime(seconds: number | null): string {
 export default async function DashboardPage() {
   const { session, threshold, cityName } = await staffContext();
 
-  const [metrics, top] = await Promise.all([
+  const [metrics, plotted] = await Promise.all([
     queueMetrics(session.city, threshold),
-    queue(session, threshold, { openOnly: true, limit: 6 }),
+    queue(session, threshold, { openOnly: true, limit: 400 }),
   ]);
+
+  // The map plots the whole open queue and the panel beside it takes the head of the
+  // same list, so the two can never disagree about what is worst.
+  const top = plotted.slice(0, 6);
 
   return (
     <Shell
@@ -55,37 +60,14 @@ export default async function DashboardPage() {
         />
       </dl>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1.8fr_1fr]">
         <Panel
-          title="Municipal Workflow"
-          subtitle="How a jolt on somebody's phone becomes a work order."
+          title={`Road Defect Map — ${cityName}`}
+          subtitle="Each marker is a report, coloured by priority band. Repeated
+            confirmations from independent travellers raise both the band and the
+            confirmation state."
         >
-          <ol className="grid gap-3 sm:grid-cols-2">
-            <Step
-              number={1}
-              title="Detect"
-              body="A phone in a moving vehicle records a jolt that looks like a hole
-                rather than a speed bump."
-            />
-            <Step
-              number={2}
-              title="Repeat"
-              body="Detections from different travellers accumulate within about twenty
-                metres of each other."
-            />
-            <Step
-              number={3}
-              title="Confirm"
-              body={`At ${threshold} independent confirmations the report is treated as
-                confirmed rather than under review.`}
-            />
-            <Step
-              number={4}
-              title="Assign"
-              body="The head of road maintenance sends it to an employee or a field
-                team, who closes it with a note."
-            />
-          </ol>
+          <DefectMap defects={plotted} threshold={threshold} height={430} />
         </Panel>
 
         <Panel title="Priority Queue" subtitle="Open reports, most-confirmed first.">
@@ -122,6 +104,40 @@ export default async function DashboardPage() {
               ))}
             </ul>
           )}
+        </Panel>
+      </div>
+
+      <div className="mt-4">
+        <Panel
+          title="Municipal Workflow"
+          subtitle="How a jolt on somebody's phone becomes a work order."
+        >
+          <ol className="grid gap-3 sm:grid-cols-2">
+            <Step
+              number={1}
+              title="Detect"
+              body="A phone in a moving vehicle records a jolt that looks like a hole
+                rather than a speed bump."
+            />
+            <Step
+              number={2}
+              title="Repeat"
+              body="Detections from different travellers accumulate within about twenty
+                metres of each other."
+            />
+            <Step
+              number={3}
+              title="Confirm"
+              body={`At ${threshold} independent confirmations the report is treated as
+                confirmed rather than under review.`}
+            />
+            <Step
+              number={4}
+              title="Assign"
+              body="The head of road maintenance sends it to an employee or a field
+                team, who closes it with a note."
+            />
+          </ol>
         </Panel>
       </div>
 

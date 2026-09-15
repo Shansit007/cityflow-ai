@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { AssignControl } from "@/components/assign-control";
 import { ConfirmationBadge, PriorityBadge } from "@/components/badges";
 import { DefectActions } from "@/components/defect-actions";
+import { DefectMap } from "@/components/defect-map";
 import { Panel } from "@/components/panel";
 import { Shell } from "@/components/shell";
 import { confirmationOf, priorityOf } from "@/lib/classify";
@@ -93,7 +94,13 @@ export default async function DefectDetailPage({
 
         <div className="grid gap-4">
           <Panel title="Location">
-            <dl className="grid gap-3">
+            <DefectMap
+              defects={[defect]}
+              threshold={threshold}
+              selectedId={defect.id}
+              height={220}
+            />
+            <dl className="mt-3 grid gap-3">
               <Fact
                 label="Coordinates"
                 value={`${defect.lat.toFixed(5)}, ${defect.lon.toFixed(5)}`}
