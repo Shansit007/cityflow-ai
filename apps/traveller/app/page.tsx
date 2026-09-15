@@ -1,59 +1,94 @@
-import { AppShell } from "@cityflow/ui";
-import { createEngineClient, EngineUnavailableError } from "@cityflow/api-client";
+import Link from "next/link";
+import { AppShell, Button, Card } from "@cityflow/ui";
 
-import type { EngineHealth } from "@cityflow/api-client";
+import { InflowDiagram } from "@/components/inflow-diagram";
+import { CITIES, DEFAULT_CITY } from "@/lib/cities";
 
-export const dynamic = "force-dynamic";
-
-async function readEngineHealth(): Promise<EngineHealth | null> {
-  const baseUrl = process.env.ENGINE_URL;
-  if (!baseUrl) return null;
-
-  try {
-    return await createEngineClient(baseUrl).health();
-  } catch (error) {
-    if (error instanceof EngineUnavailableError) return null;
-    throw error;
-  }
-}
-
-export default async function HomePage() {
-  const health = await readEngineHealth();
-
+export default function HomePage() {
   return (
-    <AppShell productName="CityFlow AI">
-      <h1 className="max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">
-        Congestion is an arrival-rate problem, not a routing problem.
-      </h1>
+    <AppShell productName="CityFlow AI" nav={<SignIn />}>
+      <section className="max-w-2xl">
+        <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+          Congestion is an arrival-rate problem, not a routing problem.
+        </h1>
 
-      <div className="mt-6 max-w-2xl space-y-4 text-[var(--ink-muted)]">
-        <p>
-          A road segment jams when more vehicles enter it in a quarter of an hour than it
-          can absorb. Routing tools move traffic around a jam that already exists.
-          CityFlow AI works one step earlier, by spreading departure times so the inflow
-          stays under capacity in the first place.
-        </p>
-        <p>
-          Recommendations are advisory. Nothing here restricts when anyone may travel.
-        </p>
-      </div>
+        <div className="mt-5 space-y-4 text-[var(--ink-muted)]">
+          <p>
+            A road jams when more vehicles enter it in a quarter of an hour than it can
+            absorb. Navigation apps route you around a jam that already exists. CityFlow
+            AI works one step earlier, spreading departure times so the jam does not form.
+          </p>
+          <p className="text-[var(--ink)]">
+            It tells you when to leave, not which way to go.
+          </p>
+        </div>
 
-      <EngineStatus health={health} />
+        <form action="/join" method="get" className="mt-8 flex flex-wrap gap-3">
+          <label htmlFor="city" className="sr-only">
+            Your city
+          </label>
+          <select
+            id="city"
+            name="city"
+            defaultValue={DEFAULT_CITY}
+            className="rounded-[var(--radius)] border border-[var(--line-strong)] bg-[var(--surface-raised)] px-3 py-2.5 text-sm"
+          >
+            {CITIES.map((city) => (
+              <option key={city.code} value={city.code}>
+                {city.name}
+              </option>
+            ))}
+          </select>
+          <Button type="submit">Get your City ID</Button>
+        </form>
+
+        <p className="mt-3 text-xs text-[var(--ink-muted)]">
+          No name, no email, no phone number. Recommendations are advisory; nothing here
+          restricts when anyone may travel.
+        </p>
+      </section>
+
+      <section className="mt-14 max-w-3xl">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-[var(--ink-muted)]">
+          How it works
+        </h2>
+        <div className="mt-5">
+          <InflowDiagram />
+        </div>
+      </section>
+
+      <section className="mt-14 grid max-w-3xl gap-4 sm:grid-cols-3">
+        <Explainer title="It plans the whole city, not you alone">
+          Telling every commuter the same quiet moment just moves the peak. Departures are
+          allocated against each segment&rsquo;s remaining capacity, so no two people are
+          sent into the same gap.
+        </Explainer>
+        <Explainer title="Most people are not using it">
+          The allocator assumes it controls a minority of the road and plans around
+          everyone else, because that is the situation any real deployment starts in.
+        </Explainer>
+        <Explainer title="It should not always be you">
+          Being shifted yesterday makes you more expensive to shift today, so the same
+          flexible commuters do not absorb the whole problem.
+        </Explainer>
+      </section>
     </AppShell>
   );
 }
 
-function EngineStatus({ health }: { health: EngineHealth | null }) {
-  const label = !health
-    ? "not reachable"
-    : health.database === "up"
-      ? `${health.status} · v${health.version}`
-      : `${health.status} · database down`;
-
+function Explainer({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <dl className="mt-10 flex items-baseline gap-3 border-t border-[var(--line)] pt-4 text-sm">
-      <dt className="text-[var(--ink-muted)]">Engine</dt>
-      <dd className="font-medium">{label}</dd>
-    </dl>
+    <Card>
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <p className="mt-2 text-sm text-[var(--ink-muted)]">{children}</p>
+    </Card>
+  );
+}
+
+function SignIn() {
+  return (
+    <Link href="/join" className="text-[var(--ink-muted)] hover:text-[var(--ink)]">
+      I have a City ID
+    </Link>
   );
 }

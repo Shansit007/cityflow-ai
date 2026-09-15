@@ -52,14 +52,14 @@ who did not need to move.
 
 There are two defensible numbers for a two-wheeler's PCU and the repo carries both.
 
-| Vehicle | Indo-HCM | Simulated | |
-|---|---|---|---|
-| two-wheeler | 0.35 | 0.539 | |
-| car | 1.00 | 1.000 | by definition |
-| auto-rickshaw | 0.80 | 0.822 | |
-| LCV | 1.40 | 1.225 | |
-| bus | 3.00 | 1.652 | |
-| **fleet mean** | **0.635** | **0.722** | 14% apart |
+| Vehicle        | Indo-HCM  | Simulated |               |
+| -------------- | --------- | --------- | ------------- |
+| two-wheeler    | 0.35      | 0.539     |               |
+| car            | 1.00      | 1.000     | by definition |
+| auto-rickshaw  | 0.80      | 0.822     |               |
+| LCV            | 1.40      | 1.225     |               |
+| bus            | 3.00      | 1.652     |               |
+| **fleet mean** | **0.635** | **0.722** | 14% apart     |
 
 `indo_hcm_pcu` is the published planning figure. `simulated_pcu` is derived from the
 car-following parameters the simulation actually runs — length, minimum gap and
@@ -100,8 +100,8 @@ The simulated population is synthetic. Its structure, in `sim/demand.py`:
   assumption in the model.
 - **Participation** is a draw in [0, 1) fixed per traveller, so participation at 5%
   adoption is `draw < 0.05`. Cohorts nest: everyone using the app at 5% is still using
-  it at 20%. Redrawing per level would let a difference between levels be *who*
-  participates rather than *how many*, and the adoption sweep would measure nothing in
+  it at 20%. Redrawing per level would let a difference between levels be _who_
+  participates rather than _how many_, and the adoption sweep would measure nothing in
   particular.
 - **Vehicle type** is drawn from the same fleet mix the capacity model divides by, and
   written into the scenario as a SUMO `vType`.
@@ -129,7 +129,7 @@ periphery and converge on a few employment districts along a few radial arterial
 which saturate while the residential grid stays empty.
 
 So `core/cities.py` carries the city's employment districts, and a cell's attraction as
-a *destination* is its street length weighted by how much employment reaches it:
+a _destination_ is its street length weighted by how much employment reaches it:
 
 ```
 employment(cell) = street_length(cell) x Σ_districts weight x exp(-distance / 1200 m)
