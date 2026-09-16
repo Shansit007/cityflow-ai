@@ -2,7 +2,7 @@
 
 A road segment jams when more vehicles enter it in a quarter of an hour than it can
 discharge. Navigation apps route around a jam that already exists. CityFlow AI works one
-step earlier: it moves *when* people leave, so inflow stays under capacity and the jam
+step earlier: it moves _when_ people leave, so inflow stays under capacity and the jam
 does not form.
 
 ## The result
@@ -27,7 +27,7 @@ and removed a quarter as much. Per traveller actually inconvenienced, coordinati
 1.58 vehicles of excess against 0.71 — **2.2× more benefit per morning disrupted**.
 
 Only 9,208 of the 61,866 journeys were movable at all. The other 85% are non-adopters and
-people with no slack; the allocator plans *around* them rather than assuming them away.
+people with no slack; the allocator plans _around_ them rather than assuming them away.
 
 ## Coordination is the mechanism, not the advice
 
@@ -61,15 +61,15 @@ nearly indifferent.
 
 ## Repository
 
-| Path                | What it is                                                             |
-| ------------------- | ---------------------------------------------------------------------- |
-| `apps/traveller`    | Public app: City ID sign-in, journey routines, road-defect reporting    |
-| `apps/municipal`    | Internal dashboard: defect triage, priority queue, crew assignment      |
-| `services/engine`   | Capacity model, departure-slot allocator, SUMO scenarios, FastAPI       |
-| `packages/ui`       | Shared React components                                                 |
-| `packages/secrets`  | scrypt hashing, shared by both apps and the engine                      |
-| `infra`             | Postgres+PostGIS compose file, migrations, OSRM, demo seed              |
-| `docs`              | Design notes and measured results                                       |
+| Path               | What it is                                                           |
+| ------------------ | -------------------------------------------------------------------- |
+| `apps/traveller`   | Public app: City ID sign-in, journey routines, road-defect reporting |
+| `apps/municipal`   | Internal dashboard: defect triage, priority queue, crew assignment   |
+| `services/engine`  | Capacity model, departure-slot allocator, SUMO scenarios, FastAPI    |
+| `packages/ui`      | Shared React components                                              |
+| `packages/secrets` | scrypt hashing, shared by both apps and the engine                   |
+| `infra`            | Postgres+PostGIS compose file, migrations, OSRM, demo seed           |
+| `docs`             | Design notes and measured results                                    |
 
 Two Next.js apps, deployed separately, over one Postgres+PostGIS database. Maps are
 MapLibre GL over free vector tiles. No Google Maps.

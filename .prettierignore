@@ -3,3 +3,7 @@ node_modules
 dist
 pnpm-lock.yaml
 _to_delete
+
+# Written by scripts/run_sweep.py. Formatting it by hand would only diverge from
+# what the next run emits.
+docs/results
