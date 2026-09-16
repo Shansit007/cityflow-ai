@@ -14,8 +14,9 @@ import matplotlib
 
 matplotlib.use("Agg")
 
-import matplotlib.pyplot as plt  # noqa: E402  (backend must be set before pyplot)
+# Imported after use("Agg") because the backend has to be chosen before pyplot binds one.
 import matplotlib.patheffects as path_effects  # noqa: E402
+import matplotlib.pyplot as plt  # noqa: E402
 
 # Two series, checked for colour-vision separation rather than chosen by eye: this
 # pair measures dE 24.7 under protanopia and 33.6 under normal vision against the
