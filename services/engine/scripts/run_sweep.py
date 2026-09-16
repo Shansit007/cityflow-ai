@@ -194,7 +194,7 @@ def main() -> int:
         "levels": levels,
     }
 
-    rendered = json.dumps(summary, indent=2, sort_keys=True)
+    rendered = json.dumps(summary, indent=2, sort_keys=True) + "\n"
     (target / "sweep.metrics.json").write_text(rendered)
     arguments.results.mkdir(parents=True, exist_ok=True)
     (arguments.results / f"sweep-{city.code.lower()}.json").write_text(rendered)
