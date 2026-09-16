@@ -267,6 +267,12 @@ def allocate(
             ledger.commit(trip, trip.preferred_departure_s)
             allocation.departures[trip.trip_id] = trip.preferred_departure_s
 
+    # Equal regret is common and the heap breaks those ties on position, so without
+    # this the result depends on what order the caller happened to iterate travellers
+    # in - two scripts planning the same cohort from the same data disagreed by 10%
+    # because one read the population file and the other read the route file.
+    movable.sort(key=lambda trip: (trip.preferred_departure_s, trip.trip_id))
+
     queue: list[tuple[float, int]] = []
     for index, trip in enumerate(movable):
         _, best, second = _best_two(

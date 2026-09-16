@@ -247,3 +247,26 @@ def test_a_preferred_departure_outside_its_own_window_is_refused() -> None:
             latest_departure_s=EIGHT_AM + 1200,
             movable=True,
         )
+
+
+def test_allocation_does_not_depend_on_caller_iteration_order() -> None:
+    """
+    Two callers planning the same cohort must get the same plan.
+
+    run_allocation.py reads travellers out of the population file and run_sweep.py
+    reads them out of the route file, which is sorted by departure. When ties in the
+    regret queue fell back on position, those two orders produced plans that differed
+    by 10% of the excess removed.
+    """
+    trips = [
+        trip(f"t{index:03d}", preferred=EIGHT_AM + (index % 7) * 300)
+        for index in range(60)
+    ]
+    capacity = {BOTTLENECK: 20}
+
+    forward = allocate(trips, capacity)
+    reversed_order = allocate(list(reversed(trips)), capacity)
+    shuffled = allocate(trips[17:] + trips[:17], capacity)
+
+    assert forward.departures == reversed_order.departures
+    assert forward.departures == shuffled.departures
