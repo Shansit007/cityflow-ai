@@ -372,30 +372,52 @@ recomputed when a trip is popped, because committing one trip changes it for oth
 ### Measured
 
 Bengaluru, 08:00–10:00, 61,866 journeys, 20% adoption. Reproduce with
-`scripts/run_allocation.py --city BLR --demand-share 1.0 --adoption 0.20`; the numbers
-below are `docs/results/allocation-blr.json` and nothing else in this repo restates them
-by hand.
+`scripts/run_sweep.py --city BLR --demand-share 1.0`; the numbers below are read from
+`docs/results/sweep-blr.json` and nothing else in this repository restates them by hand.
 
 |                             | overloaded segment-windows | vehicles over capacity |
 | --------------------------- | -------------------------- | ---------------------- |
 | nobody shifts               | 94                         | 5,115                  |
-| **coordinated allocation**  | **71**                     | **2,646**              |
+| **coordinated allocation**  | **64**                     | **2,571**              |
 | independent per-user advice | 78                         | 4,476                  |
 
-Coordinated allocation removes **48% of the over-capacity vehicles**. Telling each
+Coordinated allocation removes **49.7% of the over-capacity vehicles**. Telling each
 traveller their own best time removes 12.5%.
 
-The efficiency gap is wider than the headline. Coordination shifted 1,498 travellers by
-15.9 minutes on average and the naive design shifted 897 by 14.5. Per person actually
-inconvenienced, coordination removes 1.65 vehicles of excess against 0.71 — **2.3 times
-more benefit for each traveller asked to change their morning**. Only 9,208 of the
-61,866 journeys were movable at all; the other 85% are non-participants and people with
-no slack, and the allocator planned around them rather than assuming them away.
+The efficiency gap is wider than the headline. Coordination shifted 1,612 travellers by a
+median of 15 minutes; the naive design shifted 897. Per person actually inconvenienced,
+coordination removes 1.58 vehicles of excess against 0.71 — **2.2 times more benefit for
+each traveller asked to change their morning**. Only 9,208 of the 61,866 journeys were
+movable at all; the other 85% are non-participants and people with no slack, and the
+allocator planned around them rather than assuming them away.
+
+Past 20% adoption the naive design stops helping and starts hurting: at 50% it leaves the
+network 0.8% worse than doing nothing, because every traveller is advised into the same
+trough and the trough becomes the peak. The coordinated line keeps falling, to 58 windows
+and 1,679 excess. `docs/results/sweep-blr.json` has all seven levels.
+
+### Why the plan does not depend on who is read first
+
+Regret ties are common — most travellers in an uncongested quarter-hour have several
+equally good slots — and the priority queue broke those ties on queue position. That made
+the output a function of the order the caller happened to iterate travellers in.
+`run_allocation.py` reads the population file and `run_sweep.py` reads the route file,
+which duarouter writes in departure order, so the two disagreed by 10% of the excess
+removed while both were correct implementations of the same rule.
+
+What identified it was that `allocate_independently` agreed across both scripts to the
+vehicle. It costs every trip against a fixed background and never against its own earlier
+decisions, so it has no ordering to be sensitive to. Only the coordinated path drifted,
+which located the defect in the queue rather than in the data.
+
+The movable set is now sorted on `(preferred_departure_s, trip_id)` before planning, and a
+test allocates the same cohort forward, reversed and rotated and requires all three to
+produce identical departures. It fails without the sort.
 
 ### What this measurement is not
 
-It is excess over modelled capacity, not delay. Removing 48% of over-capacity vehicles
-is not a claim that anybody's journey got 48% shorter, and the two are not proportional
+It is excess over modelled capacity, not delay. Removing half the over-capacity vehicles
+is not a claim that anybody's journey got half as short, and the two are not proportional
 — congestion responds non-linearly to load, which cuts both ways. Turning this into a
 figure in minutes requires simulating the allocated departures against the baseline in
 SUMO, which `run_allocation.py` already writes the scenario for.
