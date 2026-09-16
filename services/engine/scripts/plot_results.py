@@ -150,17 +150,18 @@ def shift_chart(data: dict, adoption: float, path: Path) -> None:
     axes.barh(labels, counts, color=COORDINATED, height=0.62)
     axes.invert_yaxis()
 
+    # An empty bucket is a result, not a gap: "over 45: 0" is the claim that nobody
+    # was pushed past three quarters of an hour.
     for label, count in zip(labels, counts, strict=True):
-        if count:
-            axes.annotate(
-                f"{count:,}",
-                xy=(count, label),
-                xytext=(5, 0),
-                textcoords="offset points",
-                va="center",
-                fontsize=9,
-                color=MUTED,
-            )
+        axes.annotate(
+            f"{count:,}",
+            xy=(count, label),
+            xytext=(5, 0),
+            textcoords="offset points",
+            va="center",
+            fontsize=9,
+            color=MUTED,
+        )
 
     axes.set_title(
         f"How far travellers were asked to move, at {adoption:.0%} adoption"
@@ -197,13 +198,15 @@ def inflow_chart(data: dict, adoption: float, path: Path) -> None:
              color=COORDINATED, label="after allocation")
 
     axes.axhline(capacity, color=MUTED, linewidth=1.5, linestyle=(0, (4, 4)))
+    # The label rides the right end of the line because the early windows are the
+    # tall ones; anchoring it left puts it inside the 08:00 bar.
     outlined(
         axes.annotate(
             f"capacity {capacity:.0f}",
-            xy=(-0.45, capacity),
-            xytext=(2, 5),
+            xy=(len(windows) - 0.55, capacity),
+            xytext=(-2, 5),
             textcoords="offset points",
-            ha="left",
+            ha="right",
             fontsize=9,
             color=MUTED,
         )
