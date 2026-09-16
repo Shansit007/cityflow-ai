@@ -293,6 +293,4 @@ def test_districts_nowhere_near_the_network_are_refused() -> None:
     far_away = Centre(x=775_000, y=1_428_000, weight=1.0)
 
     with pytest.raises(ValueError, match="coordinate systems"):
-        generate(
-            ENDPOINTS, count=10, seed=1, fleet=INDIAN_URBAN_PEAK, centres=[far_away]
-        )
+        generate(ENDPOINTS, count=10, seed=1, fleet=INDIAN_URBAN_PEAK, centres=[far_away])

@@ -196,9 +196,7 @@ def _cost(
     shifted before.
     """
     deviation_minutes = abs(departure_s - trip.preferred_departure_s) / 60
-    fairness = fairness_weight * (
-        cumulative_shift_minutes / FAIRNESS_REFERENCE_MINUTES
-    )
+    fairness = fairness_weight * (cumulative_shift_minutes / FAIRNESS_REFERENCE_MINUTES)
     overflow = ledger.marginal_overflow(trip, departure_s)
 
     return deviation_minutes * (1 + fairness) + congestion_weight * overflow

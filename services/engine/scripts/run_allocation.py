@@ -205,9 +205,7 @@ def main() -> int:
     naive_windows, naive_excess = measure(trips, capacity, naive.departures)
 
     allocated_routes = target / "allocated.cohort.rou.xml"
-    written = write_allocated(
-        routed, allocated_routes, allocation.departures, city.fleet
-    )
+    written = write_allocated(routed, allocated_routes, allocation.departures, city.fleet)
 
     summary = {
         "city": city.code,

@@ -34,8 +34,7 @@ def straight_line_stats(
     in docs/engine.md so the calibration can be checked rather than taken on trust.
     """
     distances = sorted(
-        math.dist(positions[p.origin_edge], positions[p.destination_edge])
-        for p in people
+        math.dist(positions[p.origin_edge], positions[p.destination_edge]) for p in people
     )
     return {
         "mean_km": round(sum(distances) / len(distances) / 1000, 2),
@@ -57,7 +56,6 @@ def employment_centres(city: City, net_file: Path) -> list[Centre]:
         centres.append(Centre(x + offset_x, y + offset_y, attractor.weight))
 
     return centres
-
 
 
 def destination_concentration(people: list[Traveller]) -> float:

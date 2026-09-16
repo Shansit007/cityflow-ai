@@ -29,9 +29,7 @@ def hhmm(value: str) -> int:
     return int(hours) * 3600 + int(minutes or 0) * 60
 
 
-def cohort_ids(
-    population_file: Path, begin_s: int, end_s: int, share: float
-) -> set[str]:
+def cohort_ids(population_file: Path, begin_s: int, end_s: int, share: float) -> set[str]:
     """Travellers whose habitual departure falls in the window, fixed for every run."""
     people = json.loads(population_file.read_text())
     return {

@@ -106,7 +106,6 @@ class Centre:
     weight: float
 
 
-
 @dataclass(frozen=True)
 class Traveller:
     trip_id: str
@@ -239,9 +238,7 @@ class _Geography:
             distance = math.hypot(
                 cell.centre_x - origin.centre_x, cell.centre_y - origin.centre_y
             )
-            weights.append(
-                self._mass(cell, to_work) * math.exp(-distance / DECAY_M)
-            )
+            weights.append(self._mass(cell, to_work) * math.exp(-distance / DECAY_M))
 
         cumulative = list(accumulate(weights))
         self._destination[(origin_index, to_work)] = cumulative

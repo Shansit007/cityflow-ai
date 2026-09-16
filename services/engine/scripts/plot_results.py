@@ -58,9 +58,7 @@ def style(axes) -> None:
 
 def outlined(text) -> None:
     """A thin surface-coloured stroke so a label stays legible over a gridline."""
-    text.set_path_effects(
-        [path_effects.withStroke(linewidth=3, foreground=SURFACE)]
-    )
+    text.set_path_effects([path_effects.withStroke(linewidth=3, foreground=SURFACE)])
 
 
 def adoption_chart(data: dict, field: str, title: str, ylabel: str, path: Path) -> None:
@@ -126,9 +124,7 @@ def adoption_chart(data: dict, field: str, title: str, ylabel: str, path: Path) 
 
 
 def shift_chart(data: dict, adoption: float, path: Path) -> None:
-    level = next(
-        entry for entry in data["levels"] if entry["adoption"] == adoption
-    )
+    level = next(entry for entry in data["levels"] if entry["adoption"] == adoption)
     buckets = level["shift_histogram"]
     # Ranges, not "10 or less": these are exclusive bands and a cumulative-sounding
     # label would overstate every bucket after the first.
@@ -164,9 +160,7 @@ def shift_chart(data: dict, adoption: float, path: Path) -> None:
             color=MUTED,
         )
 
-    axes.set_title(
-        f"How far travellers were asked to move, at {adoption:.0%} adoption"
-    )
+    axes.set_title(f"How far travellers were asked to move, at {adoption:.0%} adoption")
     axes.set_xlabel("Travellers")
     axes.set_ylabel("Minutes from their usual departure")
     axes.set_xlim(right=max(counts) * 1.18 if counts else 1)
@@ -177,9 +171,7 @@ def shift_chart(data: dict, adoption: float, path: Path) -> None:
 
 
 def inflow_chart(data: dict, adoption: float, path: Path) -> None:
-    level = next(
-        entry for entry in data["levels"] if entry["adoption"] == adoption
-    )
+    level = next(entry for entry in data["levels"] if entry["adoption"] == adoption)
     before = data["baseline_inflow_at_busiest"]
     after = level["inflow_at_busiest"]
     capacity = data["busiest_capacity_per_window"]
@@ -193,10 +185,20 @@ def inflow_chart(data: dict, adoption: float, path: Path) -> None:
 
     positions = range(len(windows))
     width = 0.4
-    axes.bar([p - width / 2 for p in positions], before_counts, width * 0.94,
-             color=NAIVE, label="before")
-    axes.bar([p + width / 2 for p in positions], after_counts, width * 0.94,
-             color=COORDINATED, label="after allocation")
+    axes.bar(
+        [p - width / 2 for p in positions],
+        before_counts,
+        width * 0.94,
+        color=NAIVE,
+        label="before",
+    )
+    axes.bar(
+        [p + width / 2 for p in positions],
+        after_counts,
+        width * 0.94,
+        color=COORDINATED,
+        label="after allocation",
+    )
 
     axes.axhline(capacity, color=MUTED, linewidth=1.5, linestyle=(0, (4, 4)))
     # The label rides the right end of the line because the early windows are the
