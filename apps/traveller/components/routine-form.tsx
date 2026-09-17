@@ -28,7 +28,7 @@ const MODES = [
 
 const WEEKDAYS = [1, 2, 3, 4, 5];
 
-export function RoutineForm() {
+export function RoutineForm({ centre }: { centre: { lat: number; lon: number } }) {
   const router = useRouter();
   const [label, setLabel] = useState("");
   const [origin, setOrigin] = useState<Cell | null>(null);
@@ -98,12 +98,19 @@ export function RoutineForm() {
         />
       </Field>
 
-      <CellPicker id="origin" label="From" cell={origin} onChange={setOrigin} />
+      <CellPicker
+        id="origin"
+        label="From"
+        cell={origin}
+        onChange={setOrigin}
+        centre={centre}
+      />
       <CellPicker
         id="destination"
         label="To"
         cell={destination}
         onChange={setDestination}
+        centre={centre}
       />
 
       <fieldset>

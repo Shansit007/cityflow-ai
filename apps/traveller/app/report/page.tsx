@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@cityflow/ui";
 
 import { DefectReporter } from "@/components/defect-reporter";
+import { TravellerNav } from "@/components/traveller-nav";
 import { readSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -12,22 +12,19 @@ export default async function ReportPage() {
   if (!session) redirect("/");
 
   return (
-    <AppShell
-      productName="CityFlow AI"
-      nav={
-        <Link href="/today" className="text-[var(--ink-muted)] hover:text-[var(--ink)]">
-          Today
-        </Link>
-      }
-    >
-      <h1 className="text-2xl font-semibold tracking-tight">Report road defects</h1>
+    <AppShell productName="CityFlow AI" nav={<TravellerNav current="today" />}>
+      <h1 className="text-2xl font-semibold tracking-tight">Start journey</h1>
 
       <div className="mt-4 max-w-xl space-y-4 text-sm text-[var(--ink-muted)]">
         <p>
-          With your phone mounted in a vehicle, this watches how the road shakes it and
-          flags the jolts that look like a hole rather than a speed bump. It needs the
-          phone reasonably fixed in place — loose in a pocket, most of what it measures is
-          you.
+          Press start when you set off. With your phone mounted in the vehicle, CityFlow
+          watches how the road shakes it and flags the jolts that look like a hole rather
+          than a speed bump, for as long as you are travelling. It needs the phone
+          reasonably fixed in place — loose in a pocket, most of what it measures is you.
+        </p>
+        <p>
+          Confirmed defects reach the council&rsquo;s queue on their own. You do not file
+          anything, and there is no form to fill in.
         </p>
         <p>
           A jolt you record is not a defect. It becomes one only when several travellers

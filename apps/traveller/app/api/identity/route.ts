@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { pool } from "@/lib/db";
 import { hashSecret } from "@cityflow/secrets";
-import { issueSession } from "@/lib/session";
+import { clearSession, issueSession, readSession } from "@/lib/session";
 import { CITY_CODE_PATTERN, isValidCityId, isValidRecoveryCode } from "@/lib/city-id";
 
 const UNIQUE_VIOLATION = "23505";
@@ -67,4 +67,25 @@ export async function POST(request: Request): Promise<NextResponse> {
 
 function isPostgresError(error: unknown): error is { code: string } {
   return typeof error === "object" && error !== null && "code" in error;
+}
+
+/**
+ * Deletes the account and everything hanging off it.
+ *
+ * The schema does the work: routines, trips and points cascade from city_identities,
+ * so there is no list of tables here to fall out of date as the product grows. Road
+ * anomalies are deliberately not tied to the identity that recorded them, so they are
+ * not reachable from here and nothing that reports a pothole can be traced back by
+ * deleting the reporter.
+ */
+export async function DELETE(): Promise<NextResponse> {
+  const session = await readSession();
+  if (!session) {
+    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  }
+
+  await pool().query(`DELETE FROM city_identities WHERE id = $1`, [session.identityId]);
+  await clearSession();
+
+  return NextResponse.json({ deleted: true });
 }

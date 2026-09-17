@@ -8,6 +8,7 @@ import {
   type Recommendation,
 } from "@cityflow/api-client";
 
+import { TravellerNav } from "@/components/traveller-nav";
 import { pool } from "@/lib/db";
 import { engineUrl } from "@/lib/env";
 import { clock, instantFor, zonedToday } from "@/lib/localtime";
@@ -75,17 +76,7 @@ export default async function TodayPage() {
   );
 
   return (
-    <AppShell
-      productName="CityFlow AI"
-      nav={
-        <Link
-          href="/routines"
-          className="text-[var(--ink-muted)] hover:text-[var(--ink)]"
-        >
-          Routines
-        </Link>
-      }
-    >
+    <AppShell productName="CityFlow AI" nav={<TravellerNav current="today" />}>
       <h1 className="text-2xl font-semibold tracking-tight">Today</h1>
 
       {rows.length === 0 ? (
@@ -164,7 +155,27 @@ function PlanCard({ entry }: { entry: Planned }) {
       ) : (
         <PlanBody plan={plan} />
       )}
+
+      <StartJourney />
     </Card>
+  );
+}
+
+function StartJourney() {
+  return (
+    <div className="mt-6 border-t border-[var(--line)] pt-4">
+      <Link
+        href="/report"
+        className="inline-block rounded-[var(--radius)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--accent-ink)]"
+      >
+        Start journey
+      </Link>
+      <p className="mt-2 text-xs text-[var(--ink-muted)]">
+        Mount your phone and CityFlow watches how the road shakes it, passing the jolts
+        that look like holes to the council once other travellers hit the same place.
+        Nothing is recorded until you press start.
+      </p>
+    </div>
   );
 }
 

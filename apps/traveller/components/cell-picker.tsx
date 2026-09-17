@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button, Field, inputStyle } from "@cityflow/ui";
 
+import { CellMap } from "@/components/cell-map";
 import { cellFor, cellSize, type Cell } from "@/lib/geohash";
 
 interface CellPickerProps {
@@ -10,6 +11,8 @@ interface CellPickerProps {
   label: string;
   cell: Cell | null;
   onChange: (cell: Cell | null) => void;
+  /** Where the map opens before anything has been picked. */
+  centre: { lat: number; lon: number };
 }
 
 /**
@@ -19,7 +22,7 @@ interface CellPickerProps {
  * cell leaves. Showing the cell and its size is the point: the privacy claim is
  * visible in the interface rather than asserted in a policy nobody opens.
  */
-export function CellPicker({ id, label, cell, onChange }: CellPickerProps) {
+export function CellPicker({ id, label, cell, onChange, centre }: CellPickerProps) {
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [locating, setLocating] = useState(false);
@@ -66,6 +69,23 @@ export function CellPicker({ id, label, cell, onChange }: CellPickerProps) {
       <Button tone="secondary" type="button" onClick={locate} disabled={locating}>
         {locating ? "Locating…" : "Use my current location"}
       </Button>
+
+      <p className="mt-3 text-xs text-[var(--ink-muted)]">
+        Tap the map, or type coordinates. The blue box is the cell that gets stored.
+      </p>
+
+      <div className="mt-2">
+        <CellMap
+          centre={centre}
+          cell={cell}
+          label={`Pick a place: ${label}`}
+          onPick={(lat, lon) => {
+            setLatitude(lat.toFixed(5));
+            setLongitude(lon.toFixed(5));
+            apply(lat, lon);
+          }}
+        />
+      </div>
 
       <div className="mt-3 grid grid-cols-2 gap-3">
         <Field label="Latitude" htmlFor={`${id}-lat`}>

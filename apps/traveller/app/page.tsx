@@ -1,12 +1,12 @@
-import Link from "next/link";
 import { AppShell, Button, Card } from "@cityflow/ui";
 
 import { InflowDiagram } from "@/components/inflow-diagram";
+import { SignedOutNav } from "@/components/traveller-nav";
 import { CITIES, DEFAULT_CITY } from "@/lib/cities";
 
 export default function HomePage() {
   return (
-    <AppShell productName="CityFlow AI" nav={<SignIn />}>
+    <AppShell productName="CityFlow AI" nav={<SignedOutNav />}>
       <section className="max-w-2xl">
         <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
           Congestion is an arrival-rate problem, not a routing problem.
@@ -82,13 +82,5 @@ function Explainer({ title, children }: { title: string; children: React.ReactNo
       <h3 className="text-sm font-semibold">{title}</h3>
       <p className="mt-2 text-sm text-[var(--ink-muted)]">{children}</p>
     </Card>
-  );
-}
-
-function SignIn() {
-  return (
-    <Link href="/join" className="text-[var(--ink-muted)] hover:text-[var(--ink)]">
-      I have a City ID
-    </Link>
   );
 }
