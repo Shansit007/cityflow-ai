@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@cityflow/ui";
 
 import { DefectReporter } from "@/components/defect-reporter";
+import { CityBackdrop } from "@/components/city-backdrop";
 import { TravellerNav } from "@/components/traveller-nav";
 import { readSession } from "@/lib/session";
 
@@ -12,7 +13,11 @@ export default async function ReportPage() {
   if (!session) redirect("/");
 
   return (
-    <AppShell productName="CityFlow AI" nav={<TravellerNav current="today" />}>
+    <AppShell
+      productName="CityFlow AI"
+      backdrop={<CityBackdrop city={session.cityId.slice(0, 3)} />}
+      nav={<TravellerNav current="today" />}
+    >
       <h1 className="text-2xl font-semibold tracking-tight">Start journey</h1>
 
       <div className="mt-4 max-w-xl space-y-4 text-sm text-[var(--ink-muted)]">

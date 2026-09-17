@@ -2,8 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell, Card } from "@cityflow/ui";
 
+import { CityBackdrop } from "@/components/city-backdrop";
 import { TravellerNav } from "@/components/traveller-nav";
 import { pool } from "@/lib/db";
+import { shortDate } from "@/lib/localtime";
 import { readSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +45,11 @@ export default async function RewardsPage() {
   const balance = rows.reduce((total, entry) => total + entry.points, 0);
 
   return (
-    <AppShell productName="CityFlow AI" nav={<TravellerNav current="rewards" />}>
+    <AppShell
+      productName="CityFlow AI"
+      backdrop={<CityBackdrop city={session.cityId.slice(0, 3)} />}
+      nav={<TravellerNav current="rewards" />}
+    >
       <h1 className="text-2xl font-semibold tracking-tight">Rewards</h1>
 
       <Card className="mt-6 max-w-xl border-[var(--line-strong)]">
@@ -97,10 +103,7 @@ export default async function RewardsPage() {
               <tr key={entry.id} className="border-b border-[var(--line)]">
                 <td className="py-3">{REASON[entry.source]}</td>
                 <td className="py-3 text-[var(--ink-muted)]">
-                  {new Date(entry.created_at).toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "short",
-                  })}
+                  {shortDate(new Date(entry.created_at))}
                 </td>
                 <td className="py-3 text-right tabular-nums">
                   {entry.points > 0 ? `+${entry.points}` : entry.points}

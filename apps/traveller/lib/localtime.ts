@@ -104,3 +104,42 @@ const CLOCK = new Intl.DateTimeFormat("en-GB", {
 export function clock(instant: Date): string {
   return CLOCK.format(instant);
 }
+
+const LONG_DATE = new Intl.DateTimeFormat("en-GB", {
+  timeZone: INDIA_TIME_ZONE,
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+});
+
+/**
+ * A date the server and the browser agree on.
+ *
+ * toLocaleDateString without a zone formats in whatever zone the process happens to be
+ * in, so a server in UTC and a phone in IST render different text and React tears the
+ * page down rather than hydrate it.
+ */
+export function longDate(instant: Date = new Date()): string {
+  return LONG_DATE.format(instant);
+}
+
+const SHORT_DATE = new Intl.DateTimeFormat("en-GB", {
+  timeZone: INDIA_TIME_ZONE,
+  day: "numeric",
+  month: "short",
+});
+
+const FULL_DATE = new Intl.DateTimeFormat("en-GB", {
+  timeZone: INDIA_TIME_ZONE,
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+export function shortDate(instant: Date): string {
+  return SHORT_DATE.format(instant);
+}
+
+export function fullDate(instant: Date): string {
+  return FULL_DATE.format(instant);
+}

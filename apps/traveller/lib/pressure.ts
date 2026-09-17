@@ -1,5 +1,5 @@
 import { pool } from "@/lib/db";
-import { INDIA_TIME_ZONE } from "@/lib/localtime";
+import { INDIA_TIME_ZONE, instantFor, zonedToday } from "@/lib/localtime";
 
 /**
  * Capacity in departure_slots is per hour, and a window is a quarter of one.
@@ -60,9 +60,11 @@ export async function cityPressure(
   city: string,
   at: Date = new Date(),
 ): Promise<Pressure> {
-  const dayStart = new Date(at);
-  dayStart.setUTCHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart.getTime() + 36 * 60 * 60 * 1000);
+  // The city's own day, not the server's. Taking UTC midnight and a generous window
+  // spanned two local days at once, so the same clock label appeared twice and the
+  // chart quietly plotted this morning beside yesterday's.
+  const dayStart = instantFor(zonedToday(at), "00:00");
+  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
   const [windows, busiest, loaded] = await Promise.all([
     pool().query<WindowRow>(

@@ -40,7 +40,7 @@ export function PressureChart({
           const current = now !== null && window.at === now.at;
           return (
             <rect
-              key={window.at}
+              key={window.startsAt.toISOString()}
               x={index * slot + GAP / 2}
               y={HEIGHT - height}
               width={Math.max(slot - GAP, 0.5)}
@@ -83,7 +83,10 @@ export function PressureChart({
           </thead>
           <tbody>
             {windows.map((window) => (
-              <tr key={window.at} className="border-t border-[var(--line)]">
+              <tr
+                key={window.startsAt.toISOString()}
+                className="border-t border-[var(--line)]"
+              >
                 <td className="py-1">{window.at}</td>
                 <td className="py-1 text-right tabular-nums">
                   {window.over.toLocaleString()}

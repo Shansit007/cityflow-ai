@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@cityflow/ui";
 
 import { RoutineForm } from "@/components/routine-form";
+import { CityBackdrop } from "@/components/city-backdrop";
 import { TravellerNav } from "@/components/traveller-nav";
 import { RoutineList, type SavedRoutine } from "@/components/routine-list";
 import { CITIES, DEFAULT_CITY } from "@/lib/cities";
@@ -30,7 +31,11 @@ export default async function RoutinesPage() {
   );
 
   return (
-    <AppShell productName="CityFlow AI" nav={<TravellerNav current="routines" />}>
+    <AppShell
+      productName="CityFlow AI"
+      backdrop={<CityBackdrop city={session.cityId.slice(0, 3)} />}
+      nav={<TravellerNav current="routines" />}
+    >
       <h1 className="text-2xl font-semibold tracking-tight">Your routines</h1>
       <p className="mt-3 max-w-xl text-sm text-[var(--ink-muted)]">
         A routine is a journey you make regularly. CityFlow needs the time you have to

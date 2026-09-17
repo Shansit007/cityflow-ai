@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 
 export interface AppShellProps {
   productName: string;
+  /** Sits behind everything, full bleed and fixed while the page scrolls over it. */
+  backdrop?: ReactNode;
   /** Distinguishes the two deployed surfaces in the header, e.g. "Municipal". */
   surface?: string;
   nav?: ReactNode;
@@ -15,10 +17,12 @@ export function AppShell({
   surface,
   nav,
   footnote,
+  backdrop,
   children,
 }: AppShellProps) {
   return (
-    <div className="flex min-h-dvh flex-col bg-[var(--surface)] text-[var(--ink)]">
+    <div className="relative flex min-h-dvh flex-col text-[var(--ink)]">
+      {backdrop}
       <header className="border-b border-[var(--line)]">
         <div className="mx-auto flex w-full max-w-7xl items-center gap-4 px-4 py-4 sm:px-6">
           <span className="font-semibold tracking-tight">{productName}</span>

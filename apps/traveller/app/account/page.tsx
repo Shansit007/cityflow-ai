@@ -2,9 +2,11 @@ import { redirect } from "next/navigation";
 import { AppShell, Card } from "@cityflow/ui";
 
 import { DeleteAccount, SignOutButton } from "@/components/account-actions";
+import { CityBackdrop } from "@/components/city-backdrop";
 import { TravellerNav } from "@/components/traveller-nav";
 import { cityByCode } from "@/lib/cities";
 import { pool } from "@/lib/db";
+import { fullDate } from "@/lib/localtime";
 import { readSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +41,11 @@ export default async function AccountPage() {
   const city = cityByCode(summary.home_city);
 
   return (
-    <AppShell productName="CityFlow AI" nav={<TravellerNav current="account" />}>
+    <AppShell
+      productName="CityFlow AI"
+      backdrop={<CityBackdrop city={session.cityId.slice(0, 3)} />}
+      nav={<TravellerNav current="account" />}
+    >
       <h1 className="text-2xl font-semibold tracking-tight">Account</h1>
 
       <Card className="mt-6 max-w-xl">
@@ -47,13 +53,8 @@ export default async function AccountPage() {
         <p className="mt-2 font-mono text-lg tracking-wide">{session.cityId}</p>
         <p className="mt-3 text-sm text-[var(--ink-muted)]">
           {city ? city.name : summary.home_city}, since{" "}
-          {new Date(summary.created_at).toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
-          . There is no name, email or phone number attached to it, and no column in the
-          database to put one in.
+          {fullDate(new Date(summary.created_at))}. There is no name, email or phone
+          number attached to it, and no column in the database to put one in.
         </p>
       </Card>
 

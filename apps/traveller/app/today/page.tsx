@@ -17,11 +17,12 @@ import {
 } from "@cityflow/api-client";
 
 import { PressureChart } from "@/components/pressure-chart";
+import { CityBackdrop } from "@/components/city-backdrop";
 import { TravellerNav } from "@/components/traveller-nav";
 import { pool } from "@/lib/db";
 import { engineUrl } from "@/lib/env";
 import { travellerImpact } from "@/lib/impact";
-import { clock, instantFor, zonedToday } from "@/lib/localtime";
+import { clock, instantFor, longDate, zonedToday } from "@/lib/localtime";
 import { cityPressure } from "@/lib/pressure";
 import { readSession } from "@/lib/session";
 
@@ -93,14 +94,14 @@ export default async function TodayPage() {
   );
 
   return (
-    <AppShell productName="CityFlow AI" nav={<TravellerNav current="today" />}>
+    <AppShell
+      productName="CityFlow AI"
+      backdrop={<CityBackdrop city={city} />}
+      nav={<TravellerNav current="today" />}
+    >
       <PageHeader
         title="Today"
-        description={`${new Date().toLocaleDateString("en-GB", {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-        })} — when to leave, and what the roads look like while you do.`}
+        description={`${longDate()} — when to leave, and what the roads look like while you do.`}
       />
 
       <div className="mt-6">

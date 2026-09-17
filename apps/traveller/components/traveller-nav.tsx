@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { ThemeToggle } from "@/components/theme-toggle";
+
 export type Section = "today" | "routines" | "rewards" | "account";
 
 const SECTIONS: { key: Section; href: string; label: string }[] = [
@@ -37,14 +39,21 @@ export function TravellerNav({ current }: { current?: Section }) {
           </li>
         );
       })}
+      <li className="ml-2 border-l border-[var(--line)] pl-2">
+        <ThemeToggle />
+      </li>
     </ul>
   );
 }
 
 export function SignedOutNav() {
   return (
-    <Link href="/signin" className="text-[var(--ink-muted)] hover:text-[var(--ink)]">
-      I have a City ID
-    </Link>
+    <div className="flex items-center gap-2">
+      <Link href="/signin" className="text-[var(--ink-muted)] hover:text-[var(--ink)]">
+        I have a City ID
+      </Link>
+      <span className="text-[var(--line)]">|</span>
+      <ThemeToggle />
+    </div>
   );
 }

@@ -26,8 +26,14 @@
   --radius: 0.625rem;
 }
 
+/*
+ * Dark applies when the device asks for it and the reader has not said otherwise, or
+ * when they have chosen it explicitly. Guarding the media query on [data-theme="light"]
+ * is what lets the toggle win in both directions; without it, choosing light on a dark
+ * device does nothing.
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --surface: #101418;
     --surface-raised: #171c22;
     --surface-sunken: #0b0e12;
@@ -41,6 +47,21 @@
     --accent-wash: #16261f;
     --warn: #d59a52;
   }
+}
+
+:root[data-theme="dark"] {
+  --surface: #101418;
+  --surface-raised: #171c22;
+  --surface-sunken: #0b0e12;
+  --ink: #eef1f4;
+  --ink-muted: #9aa7b4;
+  --ink-faint: #6b7784;
+  --line: #262d35;
+  --line-strong: #39424c;
+  --accent: #4fb79b;
+  --accent-ink: #08140f;
+  --accent-wash: #16261f;
+  --warn: #d59a52;
 }
 
 body {
