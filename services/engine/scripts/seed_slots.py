@@ -1,5 +1,10 @@
 """Load the measured baseline into departure_slots, as the background the app plans on.
 
+The same measured morning is written to each of several days, because one day of load
+goes stale overnight: tomorrow the engine plans against an empty road and truthfully but
+uselessly tells everyone their usual time is fine. Repeating it is honest about what it
+is — one morning, not a forecast — and keeps the thing demonstrable.
+
 Without this the first traveller to ask for a recommendation sees an empty road and is
 told to leave at their usual time, which is correct and useless. The background here is
 the same cohort the README's result is measured on, so what the app avoids and what the
@@ -95,6 +100,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--city", default="BLR")
     parser.add_argument("--date", type=date.fromisoformat, default=date.today())
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=7,
+        help="How many days from --date to seed. One measured morning, repeated.",
+    )
     parser.add_argument("--begin", default="08:00")
     parser.add_argument("--end", default="10:00")
     parser.add_argument("--demand-share", type=float, default=1.0)
@@ -142,15 +153,21 @@ def main() -> int:
             logger.error("no road segments; run scripts/load_network.py first")
             return 1
 
-        written, unmatched = seed(
-            connection, city, arguments.date, ledger.loads(), lookup
-        )
+        loads = list(ledger.loads())
+        written = 0
+        unmatched = 0
+        for offset in range(arguments.days):
+            day = arguments.date + timedelta(days=offset)
+            rows, missing = seed(connection, city, day, loads, lookup)
+            written += rows
+            unmatched = missing
         connection.commit()
 
     logger.info(
         "departure_slots seeded",
         extra={
-            "date": arguments.date.isoformat(),
+            "from": arguments.date.isoformat(),
+            "days": arguments.days,
             "rows": written,
             # Junction joining drops edges, so some the simulation used have no row in
             # road_segments. Reported rather than ignored: a large share here means the

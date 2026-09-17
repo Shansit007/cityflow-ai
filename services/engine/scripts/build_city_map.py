@@ -103,9 +103,7 @@ def main() -> int:
         f'role="img" aria-label="{escape(city.name)} arterial road network">'
         f"<title>{escape(city.name)} arterial road network</title>"
         '<g fill="none" stroke="currentColor" stroke-width="1.2" '
-        'stroke-linecap="round" stroke-linejoin="round">'
-        + "".join(paths)
-        + "</g></svg>"
+        'stroke-linecap="round" stroke-linejoin="round">' + "".join(paths) + "</g></svg>"
     )
 
     written = []
