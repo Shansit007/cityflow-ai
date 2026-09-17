@@ -2,13 +2,13 @@
 
 import argparse
 import logging
-import os
 import sys
 
 import osmnx as ox
 import psycopg
 
 from app.logging import configure_logging
+from app.settings import configured_database_url
 from core.cities import City, get_city
 from core.osm import Segment, build_segment
 
@@ -147,7 +147,7 @@ def main() -> int:
     parser.add_argument("--city", default="BLR", help="City code, e.g. BLR")
     parser.add_argument(
         "--database-url",
-        default=os.environ.get("ENGINE_DATABASE_URL"),
+        default=configured_database_url(),
         help="Defaults to ENGINE_DATABASE_URL",
     )
     arguments = parser.parse_args()

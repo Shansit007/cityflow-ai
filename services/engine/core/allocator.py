@@ -90,9 +90,17 @@ class SlotLedger:
     to route anyone down a road it simply knows nothing about.
     """
 
-    def __init__(self, capacity_vph: Mapping[str, int]) -> None:
+    def __init__(
+        self,
+        capacity_vph: Mapping[str, int],
+        load: Mapping[tuple[str, int], int] | None = None,
+    ) -> None:
         self._capacity_vph = capacity_vph
-        self._load: dict[tuple[str, int], int] = {}
+        # Load already on the road before this allocator runs. Offline that is empty
+        # and every vehicle is placed here; serving one live traveller it is the rest
+        # of the city, read from departure_slots. The distinction matters nowhere else
+        # in this class, which is why one ledger serves both.
+        self._load: dict[tuple[str, int], int] = dict(load) if load else {}
         self.unknown_edges: set[str] = set()
 
     def window_capacity(self, edge: str) -> float | None:
@@ -138,6 +146,26 @@ class SlotLedger:
             window = (departure_s + offset) // SLOT_SECONDS
             key = (edge, window)
             self._load[key] = self._load.get(key, 0) + 1
+
+    def segments_over_capacity(self, trip: PlannedTrip, departure_s: int) -> int:
+        """
+        How many segments of this trip's path are already full when it reaches them.
+
+        The objective this class optimises is squared excess, which is comparable
+        between candidate times and meaningless to a person. A count of roads is the
+        same fact in units a traveller can argue with.
+        """
+        count = 0
+
+        for edge, offset in zip(trip.path, trip.offsets_s, strict=True):
+            capacity = self.window_capacity(edge)
+            if capacity is None:
+                continue
+            window = (departure_s + offset) // SLOT_SECONDS
+            if self._load.get((edge, window), 0) + 1 > capacity:
+                count += 1
+
+        return count
 
     def loads(self) -> Iterable[tuple[tuple[str, int], int]]:
         """Every (segment, window) that carries at least one vehicle, and how many."""
@@ -237,6 +265,7 @@ def allocate(
     cumulative_shift_minutes: Mapping[str, float] | None = None,
     congestion_weight: float = CONGESTION_WEIGHT_MINUTES,
     fairness_weight: float = FAIRNESS_WEIGHT,
+    ledger: SlotLedger | None = None,
 ) -> Allocation:
     """
     Places every trip in a departure slot, keeping segment inflow within capacity.
@@ -254,7 +283,8 @@ def allocate(
     Regret is recomputed on pop, since committing one trip changes it for others.
     """
     history = cumulative_shift_minutes or {}
-    ledger = SlotLedger(capacity_vph)
+    if ledger is None:
+        ledger = SlotLedger(capacity_vph)
     allocation = Allocation()
 
     movable: list[PlannedTrip] = []
@@ -327,6 +357,7 @@ def allocate_independently(
     trips: Iterable[PlannedTrip],
     capacity_vph: Mapping[str, int],
     congestion_weight: float = CONGESTION_WEIGHT_MINUTES,
+    ledger: SlotLedger | None = None,
 ) -> Allocation:
     """
     The naive design: every traveller is told the best time given today's traffic.
@@ -340,7 +371,8 @@ def allocate_independently(
     carries the resulting inflow histogram, which has a higher peak than doing nothing
     at all.
     """
-    ledger = SlotLedger(capacity_vph)
+    if ledger is None:
+        ledger = SlotLedger(capacity_vph)
     allocation = Allocation()
     movable: list[PlannedTrip] = []
 

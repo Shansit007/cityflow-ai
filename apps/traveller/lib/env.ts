@@ -10,6 +10,10 @@ export function databaseUrl(): string {
   return required("DATABASE_URL");
 }
 
+export function engineUrl(): string {
+  return required("ENGINE_URL");
+}
+
 let cachedSecret: Uint8Array | undefined;
 
 export function authSecret(): Uint8Array {

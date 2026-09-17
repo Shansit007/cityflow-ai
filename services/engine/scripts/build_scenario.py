@@ -2,7 +2,6 @@
 
 import argparse
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -10,6 +9,7 @@ import psycopg
 from pyproj import Transformer
 
 from app.logging import configure_logging
+from app.settings import configured_database_url
 from core.cities import get_city
 from sim.network import (
     NetconvertFailed,
@@ -85,7 +85,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--city", default="BLR")
     parser.add_argument("--out", default="scenarios", type=Path)
-    parser.add_argument("--database-url", default=os.environ.get("ENGINE_DATABASE_URL"))
+    parser.add_argument("--database-url", default=configured_database_url())
     arguments = parser.parse_args()
 
     configure_logging("INFO")
