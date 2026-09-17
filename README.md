@@ -94,6 +94,10 @@ pnpm dev                         # traveller :3000, municipal :3001
 The compose file applies `infra/migrations` on first start. `seed_demo.py` prints the
 sign-in the dashboard needs.
 
+The Today screen plans against the load the city has already committed, so it needs a
+road network and a background to plan around. Both come from the engine, below; until
+they are loaded it says so rather than inventing a recommendation.
+
 ## Reproducing the result
 
 The engine's extras are separate because the web service never needs SUMO.
@@ -108,6 +112,9 @@ python scripts/build_demand.py   --city BLR      # gravity model to a population
 python scripts/run_baseline.py   --city BLR      # route it, and check the run is valid
 python scripts/run_sweep.py      --city BLR --demand-share 1.0
 python scripts/plot_results.py   --city BLR
+
+python scripts/seed_slots.py     --city BLR    # the background Today plans around
+uvicorn app.main:app --port 8000               # what Today asks for a departure
 ```
 
 `run_sweep.py` writes `docs/results/sweep-blr.json`; every number above is read from that
@@ -127,9 +134,10 @@ building density and named employment districts, not from observed travel survey
 network, the routing and the capacity model are real; who wants to go where is a guess
 with a defensible shape.
 
-**The allocator is not wired into the traveller app yet.** It runs offline against a
-scenario. The Today screen collects routines; it does not yet serve a plan from them.
-`services/engine` currently exposes a health endpoint and nothing else.
+**The engine does not predict travel time.** Today recommends a departure and says how
+many roads on the route are over capacity at that time against the traveller's usual
+one, which is a claim it can support. It does not tell anyone their journey will be
+shorter, because nothing here models journey time under load yet.
 
 **Path offsets assume free-flow speeds**, so the allocator's view of when a trip reaches
 the far end of its route is optimistic under load. It errs in a known direction; fixing it
@@ -138,6 +146,10 @@ needs measured per-interval edge speeds from the baseline run.
 Origin and destination are stored as ~600 m geohash cells, computed in the browser. Exact
 addresses never leave the device. This is data minimisation, not end-to-end encryption —
 see [docs/privacy.md](docs/privacy.md).
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).
 
 ## Docs
 
