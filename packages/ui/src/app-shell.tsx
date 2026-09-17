@@ -20,7 +20,7 @@ export function AppShell({
   return (
     <div className="flex min-h-dvh flex-col bg-[var(--surface)] text-[var(--ink)]">
       <header className="border-b border-[var(--line)]">
-        <div className="mx-auto flex w-full max-w-5xl items-center gap-4 px-4 py-4">
+        <div className="mx-auto flex w-full max-w-7xl items-center gap-4 px-4 py-4 sm:px-6">
           <span className="font-semibold tracking-tight">{productName}</span>
           {surface ? (
             <span className="rounded border border-[var(--line)] px-2 py-0.5 text-xs text-[var(--ink-muted)]">
@@ -31,10 +31,12 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">{children}</main>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
+        {children}
+      </main>
 
       <footer className="border-t border-[var(--line)]">
-        <div className="mx-auto w-full max-w-5xl px-4 py-6 text-xs text-[var(--ink-muted)]">
+        <div className="mx-auto w-full max-w-7xl px-4 py-6 text-xs text-[var(--ink-muted)] sm:px-6">
           {footnote ?? "Open source. Departure times are advisory and never mandatory."}
         </div>
       </footer>

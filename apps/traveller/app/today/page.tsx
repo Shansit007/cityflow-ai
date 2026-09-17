@@ -1,6 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AppShell, Card } from "@cityflow/ui";
+import {
+  AppShell,
+  Card,
+  EmptyState,
+  PageHeader,
+  Section,
+  Stat,
+  StatRow,
+} from "@cityflow/ui";
 import {
   EngineRefusedError,
   EngineUnavailableError,
@@ -8,10 +16,13 @@ import {
   type Recommendation,
 } from "@cityflow/api-client";
 
+import { PressureChart } from "@/components/pressure-chart";
 import { TravellerNav } from "@/components/traveller-nav";
 import { pool } from "@/lib/db";
 import { engineUrl } from "@/lib/env";
+import { travellerImpact } from "@/lib/impact";
 import { clock, instantFor, zonedToday } from "@/lib/localtime";
+import { cityPressure } from "@/lib/pressure";
 import { readSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -35,17 +46,23 @@ interface Planned {
 
 export default async function TodayPage() {
   const session = await readSession();
-  if (!session) redirect("/");
+  if (!session) redirect("/signin");
 
   const today = zonedToday();
-  const { rows } = await pool().query<Routine>(
-    `SELECT id, label, origin_cell, destination_cell, arrive_by,
-            arrive_window_minutes, mode
-       FROM routines
-      WHERE identity_id = $1 AND $2 = ANY(days_of_week)
-      ORDER BY arrive_by`,
-    [session.identityId, today.weekday],
-  );
+  const city = session.cityId.slice(0, 3);
+
+  const [{ rows }, pressure, impact] = await Promise.all([
+    pool().query<Routine>(
+      `SELECT id, label, origin_cell, destination_cell, arrive_by,
+              arrive_window_minutes, mode
+         FROM routines
+        WHERE identity_id = $1 AND $2 = ANY(days_of_week)
+        ORDER BY arrive_by`,
+      [session.identityId, today.weekday],
+    ),
+    cityPressure(city),
+    travellerImpact(session.identityId),
+  ]);
 
   const engine = createEngineClient(engineUrl());
   const planned: Planned[] = await Promise.all(
@@ -56,7 +73,7 @@ export default async function TodayPage() {
           routine,
           arriveBy,
           plan: await engine.recommend({
-            city: session.cityId,
+            city,
             identity_id: session.identityId,
             routine_id: routine.id,
             origin_cell: routine.origin_cell,
@@ -77,17 +94,113 @@ export default async function TodayPage() {
 
   return (
     <AppShell productName="CityFlow AI" nav={<TravellerNav current="today" />}>
-      <h1 className="text-2xl font-semibold tracking-tight">Today</h1>
+      <PageHeader
+        title="Today"
+        description={`${new Date().toLocaleDateString("en-GB", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+        })} — when to leave, and what the roads look like while you do.`}
+      />
 
-      {rows.length === 0 ? (
-        <NothingToday />
-      ) : (
-        <div className="mt-6 max-w-xl space-y-4">
-          {planned.map((entry) => (
-            <PlanCard key={entry.routine.id} entry={entry} />
-          ))}
+      <div className="mt-6">
+        <StatRow>
+          <Stat
+            label="Roads over capacity now"
+            value={pressure.now ? pressure.now.over.toLocaleString() : "—"}
+            hint={
+              pressure.now
+                ? `of ${pressure.now.measured.toLocaleString()} measured at ${pressure.now.at}`
+                : "nothing measured for this quarter hour"
+            }
+            tone={pressure.now && pressure.now.over > 0 ? "warn" : "neutral"}
+          />
+          <Stat
+            label="Busiest segment today"
+            value={pressure.busiest ? `${pressure.busiest.ratio.toFixed(1)}×` : "—"}
+            hint={pressure.busiest ? "its capacity, at peak" : "no load recorded"}
+            tone={pressure.busiest && pressure.busiest.ratio > 1 ? "warn" : "neutral"}
+          />
+          <Stat
+            label="Segments monitored"
+            value={pressure.segmentsLoaded.toLocaleString()}
+            hint="in your city's road network"
+          />
+          <Stat
+            label="Minutes you have moved"
+            value={impact.minutesShifted.toLocaleString()}
+            hint={`across ${impact.journeysPlanned.toLocaleString()} journeys planned`}
+            tone="accent"
+          />
+        </StatRow>
+      </div>
+
+      <div className="mt-8 grid gap-8 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <Section title="Your journeys" aside={`${rows.length} today`}>
+            {rows.length === 0 ? (
+              <EmptyState
+                title="No journeys today"
+                action={
+                  <Link
+                    href="/routines"
+                    className="text-sm font-medium text-[var(--accent)]"
+                  >
+                    Add a routine
+                  </Link>
+                }
+              >
+                A routine is a journey you make regularly: where from, where to, which
+                days, and the time you need to arrive by. Save one for today and this is
+                where the departure time appears.
+              </EmptyState>
+            ) : (
+              <div className="space-y-4">
+                {planned.map((entry) => (
+                  <PlanCard key={entry.routine.id} entry={entry} />
+                ))}
+              </div>
+            )}
+          </Section>
         </div>
-      )}
+
+        <div className="space-y-8">
+          <Section
+            title="City pressure"
+            aside={pressure.now ? `now ${pressure.now.at}` : "today"}
+          >
+            {pressure.windows.length === 0 ? (
+              <p className="text-sm text-[var(--ink-muted)]">
+                No load is recorded for today. The engine plans against an empty road and
+                will tell everyone their usual time is fine, which is correct and not very
+                useful.
+              </p>
+            ) : (
+              <PressureChart windows={pressure.windows} now={pressure.now} />
+            )}
+          </Section>
+
+          <Section title="Your impact">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Stat
+                label="Roads spared"
+                value={impact.roadsSpared.toLocaleString()}
+                hint="arrivals moved off a full road"
+                tone="accent"
+              />
+              <Stat
+                label="Defects confirmed"
+                value={impact.defectsConfirmed.toLocaleString()}
+                hint="others hit the same place"
+              />
+            </div>
+            <p className="mt-3 text-xs text-[var(--ink-muted)]">
+              Counted from the recommendations you were actually given, not from a tally
+              kept alongside them.
+            </p>
+          </Section>
+        </div>
+      </div>
     </AppShell>
   );
 }
@@ -102,49 +215,13 @@ function reasonFor(error: unknown): string {
   return "This journey could not be planned.";
 }
 
-function NothingToday() {
-  return (
-    <>
-      <Card className="mt-6 max-w-xl">
-        <h2 className="text-sm font-semibold">No journeys today</h2>
-        <p className="mt-2 text-sm text-[var(--ink-muted)]">
-          A routine is a journey you make regularly: where from, where to, which days, and
-          the time you need to arrive by. Once one is saved for today, this page shows
-          when to leave.
-        </p>
-        <Link
-          href="/routines"
-          className="mt-4 inline-block text-sm font-medium text-[var(--accent)]"
-        >
-          Add a routine
-        </Link>
-      </Card>
-
-      <Card className="mt-4 max-w-xl">
-        <h2 className="text-sm font-semibold">Report road defects as you travel</h2>
-        <p className="mt-2 text-sm text-[var(--ink-muted)]">
-          With your phone mounted in a vehicle, CityFlow can spot the jolts that look like
-          a pothole and pass them to the council once several travellers have hit the same
-          place.
-        </p>
-        <Link
-          href="/report"
-          className="mt-4 inline-block text-sm font-medium text-[var(--accent)]"
-        >
-          Start reporting
-        </Link>
-      </Card>
-    </>
-  );
-}
-
 function PlanCard({ entry }: { entry: Planned }) {
   const { routine, arriveBy, plan, problem } = entry;
 
   return (
     <Card>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold">{routine.label}</h2>
+        <h3 className="text-sm font-semibold">{routine.label}</h3>
         <span className="text-sm text-[var(--ink-muted)]">
           arrive by {clock(arriveBy)}
         </span>
@@ -187,7 +264,7 @@ function PlanBody({ plan }: { plan: Recommendation }) {
 
   return (
     <>
-      <p className="mt-4 text-3xl font-semibold tracking-tight">
+      <p className="mt-4 text-4xl font-semibold tracking-tight">
         Leave at {clock(depart)}
       </p>
 
@@ -203,7 +280,7 @@ function PlanBody({ plan }: { plan: Recommendation }) {
             Leaving at {clock(usual)} would put you on roads already at their limit.
           </p>
           {avoided > 0 ? (
-            <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-md bg-[var(--line)] text-sm">
+            <dl className="mt-4 grid max-w-md grid-cols-2 gap-px overflow-hidden rounded-[var(--radius)] bg-[var(--line)] text-sm">
               <Figure label={`At ${clock(usual)}`} value={plan.roads_over_at_usual} />
               <Figure label={`At ${clock(depart)}`} value={plan.roads_over_at_plan} />
             </dl>
@@ -224,7 +301,7 @@ function PlanBody({ plan }: { plan: Recommendation }) {
 
 function Figure({ label, value }: { label: string; value: number }) {
   return (
-    <div className="bg-[var(--surface)] p-3">
+    <div className="bg-[var(--surface-raised)] p-3">
       <dt className="text-xs text-[var(--ink-muted)]">
         {label}
         <span className="sr-only"> roads on your route</span>
