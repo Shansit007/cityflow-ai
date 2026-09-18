@@ -1,8 +1,8 @@
-import { AppShell, Button, Card } from "@cityflow/ui";
+import { AppShell, Card } from "@cityflow/ui";
 
+import { CityChooser } from "@/components/city-chooser";
 import { InflowDiagram } from "@/components/inflow-diagram";
 import { SignedOutNav } from "@/components/traveller-nav";
-import { CITIES, DEFAULT_CITY } from "@/lib/cities";
 
 export default function HomePage() {
   return (
@@ -23,24 +23,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        <form action="/join" method="get" className="mt-8 flex flex-wrap gap-3">
-          <label htmlFor="city" className="sr-only">
-            Your city
-          </label>
-          <select
-            id="city"
-            name="city"
-            defaultValue={DEFAULT_CITY}
-            className="rounded-[var(--radius)] border border-[var(--line-strong)] bg-[var(--surface-raised)] px-3 py-2.5 text-sm"
-          >
-            {CITIES.map((city) => (
-              <option key={city.code} value={city.code}>
-                {city.name}
-              </option>
-            ))}
-          </select>
-          <Button type="submit">Get your City ID</Button>
-        </form>
+        <CityChooser />
 
         <p className="mt-3 text-xs text-[var(--ink-muted)]">
           No name, no email, no phone number. Recommendations are advisory; nothing here

@@ -1,53 +1,44 @@
 # Attribution
 
-Every photograph in `apps/*/public/city/` is listed here with its source and licence.
-An image that is not on this list is not in the repository: a public repository that
-redistributes a photograph without a licence permitting redistribution is a liability,
-and "found on the internet" is not a licence.
+## Backdrops
 
-## City backdrops
+There are no photographs in this repository, on purpose.
 
-The apps look for `public/city/<iata>.jpg` — `blr.jpg`, `del.jpg`, `bom.jpg` and so on.
-Where there is no photograph the city's landmark line drawing is used instead, so the
-app is complete without any of these files.
+Each city's backdrop is generated: two soft gradient washes in colours chosen for that
+city, and an outline drawing of one of its landmarks. Both are produced in the browser
+from a few hundred bytes of CSS and SVG. Nothing is downloaded, they stay sharp at any
+size, and they follow the theme control rather than being fixed to one of the two.
 
-| File       | City | Source | Author | Licence |
-| ---------- | ---- | ------ | ------ | ------- |
-| _none yet_ |      |        |        |         |
+The alternative was a photograph per city, and it was rejected on its merits. Every image
+would need terms permitting redistribution, a credit line that has to stay accurate for
+as long as the repository exists, and a check that nobody has since changed the licence.
+Six photographs at full resolution also came to 36 MB, which is a real cost to a commuter
+on mobile data for something displayed at low opacity behind text.
 
-### Where to get images that can go here
+`apps/traveller/components/landmark.tsx` holds the drawings: India Gate, Vidhana Soudha,
+the Gateway of India, Charminar, Howrah Bridge, Hawa Mahal, Napier Bridge, Shaniwar Wada
+and the Sidi Saiyyed jali. They are original work made for this project, built from arcs
+and straight lines, and they are stylised impressions rather than architectural drawings.
+No institution depicted has any connection to CityFlow or has endorsed it.
 
-- **Wikimedia Commons** — filter to CC0, CC BY or CC BY-SA. Most Indian landmarks have
-  good photographs under these terms. Record the author and licence in the table above;
-  CC BY and CC BY-SA require it.
-- **Unsplash** and **Pexels** — their licences permit commercial use without
-  attribution, though crediting the photographer here anyway costs nothing.
-- **Your own photographs** — put "own work" in the author column.
-
-Avoid Google Images results, stock previews and anything with a watermark, whatever the
-site says about "free". Most of those are neither free nor licensed for redistribution.
-
-### What makes a good one
-
-Landscape, at least 1920px wide, and busy in the middle only if it is also dark there —
-the image sits at 13% opacity behind text, so a bright sky behind pale ink is the one
-thing that breaks it. Compress to around 200 KB; nobody should wait on a backdrop to
-read a departure time.
-
-## Line drawings
-
-`apps/traveller/components/landmark.tsx` contains original drawings made for this
-project, built from geometric primitives. They are stylised impressions of public
-monuments and are decoration: no institution depicted has any connection to CityFlow,
-and none has endorsed it.
+`apps/traveller/components/city-backdrop.tsx` holds the colours, each with a line saying
+what it is reaching for, so anyone changing one knows what they would be breaking.
 
 ## Map tiles
 
 MapLibre renders tiles from [OpenFreeMap](https://openfreemap.org), which serves
-OpenStreetMap data. Map data is © OpenStreetMap contributors, ODbL. The attribution
-control on every map states this, and it should not be removed.
+OpenStreetMap data with no key and no quota. Map data is © OpenStreetMap contributors,
+ODbL. The attribution control on every map states this and should not be removed.
 
 ## Road network
 
 `road_segments` is derived from OpenStreetMap via Overpass. © OpenStreetMap
-contributors, ODbL.
+contributors, ODbL. `scripts/build_city_map.py` can draw that same geometry as an SVG,
+which is an option for a backdrop that is literally the city's own streets.
+
+## Capacity model
+
+Saturation flow rates and green ratios follow Indo-HCM (CSIR-CRRI, 2017). The lane-width
+adjustment is from the HCM 6th edition. Neither organisation has any connection to this
+project; `docs/engine.md` sets out exactly which numbers came from where and which are
+this project's own assumptions.
