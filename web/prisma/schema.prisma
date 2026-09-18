@@ -1,0 +1,1447 @@
+// =============================================================================
+// CityFlow AI — database schema (Prisma + PostgreSQL / Neon)
+// =============================================================================
+// PHASE 1: User + anonymous CityFlow ID.
+// PHASE 2: TravelProfile (the regular routine) + Recommendation (what we
+//          suggested, what the person actually chose).
+//
+// PHASE 3: TravelIntention, DemandSlotAggregate, NetworkEvent, ChatMessage.
+// PHASE 4: SimulationRun (SUMO evaluation).
+// PHASE 5: RoadIssue + RoadIssueReport (road-condition intelligence).
+//
+// PHASE 6: Journey (many routines per person), TripPlan (one-off trips),
+//          SavedLocation, rewards ledger, Employee + the municipal repair
+//          workflow, CityConfig thresholds and AuthToken (email verification
+//          and password reset).
+//
+// After changing anything here, run:   npm run db:push
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// USER
+// -----------------------------------------------------------------------------
+
+/// A registered commuter of the CityFlow AI user portal.
+///
+/// PRIVACY NOTE
+/// The email address exists only for authentication, account recovery and
+/// important service communication. Everywhere else in the system — analytics,
+/// aggregated demand, the Admin Portal — a user is referenced by `cityflowId`,
+/// never by email or name.
+model User {
+  /// Internal primary key. Never shown in the UI.
+  id String @id @default(cuid())
+
+  /// Login identity. Stored lower-cased so "A@b.com" and "a@b.com" are one account.
+  email String @unique
+
+  /// bcrypt hash of the password. The plain password is never stored anywhere.
+  passwordHash String
+
+  /// Optional display name / nickname used only to greet the user.
+  displayName String?
+
+  /// Anonymous public identifier, e.g. "CF-8X42K91".
+  cityflowId String @unique
+
+  /// Which city the user is currently viewing (e.g. "delhi").
+  cityCode String?
+
+  /// Set to true once the travel-routine onboarding is finished.
+  onboardingCompleted Boolean @default(false)
+
+  /// Role separation. Commuters are "USER"; the Admin Portal uses "ADMIN";
+  /// the Municipal Dashboard uses "MUNICIPAL".
+  role UserRole @default(USER)
+
+  // --- PHASE 6: contact + identity -----------------------------------------
+
+  /// Optional contact number. Never shown in any city-level view, never part of
+  /// a municipal hand-off. It exists so an account can be recovered and so a
+  /// municipal officer has a way to reach a reporter IF they ever opt in.
+  phone String?
+
+  /// Profile picture, stored as a small data URL (the browser downscales to
+  /// 256px before upload). Same honest limitation as road-issue photos: a
+  /// database column is not an image store, and a production deployment would
+  /// keep a URL to object storage here instead.
+  profilePictureUrl String?
+
+  /// How much of this person's data may be used beyond their own screens.
+  /// ANONYMOUS  — nothing leaves their account, not even aggregated counts
+  /// PARTIAL    — counted in aggregated demand, never individually identifiable
+  /// FULL       — as PARTIAL, plus road reports carry their CityFlow ID
+  privacyLevel PrivacyLevel @default(PARTIAL)
+
+  /// Null until the person clicks the link in their verification email.
+  /// Sign-in is deliberately NOT blocked on this — see docs/10-AUTH.md for why.
+  emailVerifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  travelProfile    TravelProfile?
+  recommendations  Recommendation[]
+  travelIntentions TravelIntention[]
+  chatMessages     ChatMessage[]
+  roadIssueReports RoadIssueReport[]
+
+  // --- PHASE 6 relations ----------------------------------------------------
+  journeys           Journey[]
+  tripPlans          TripPlan[]
+  savedLocations     SavedLocation[]
+  rewards            UserRewards?
+  rewardTransactions RewardTransaction[]
+  redemptions        RewardRedemption[]
+  authTokens         AuthToken[]
+
+  /// Set when this account IS a municipal employee, so an officer can sign in
+  /// and update their own assigned work. Most employees have no account.
+  employee Employee?
+
+  /// The employer or campus this person has joined, if any.
+  organisationMember OrganisationMember?
+
+  @@index([cityCode])
+  @@map("users")
+}
+
+/// Role separation between the User Portal and the Admin Portal.
+/// The Municipal Dashboard is a separate existing system and is NOT a role here.
+enum UserRole {
+  USER
+  ADMIN
+  /// Municipal Dashboard staff: road issues, employees and repair work only.
+  /// A MUNICIPAL user can see NO commuter data and no demand analytics.
+  MUNICIPAL
+}
+
+/// How much of a person's data may travel beyond their own screens.
+enum PrivacyLevel {
+  ANONYMOUS
+  PARTIAL
+  FULL
+}
+
+// -----------------------------------------------------------------------------
+// TRAVEL PROFILE — the regular routine, captured during onboarding
+// -----------------------------------------------------------------------------
+
+/// One per user. Everything the recommendation engine needs to know about how
+/// this person normally travels, and how much of that is negotiable.
+model TravelProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // --- Step 1: the journey ---------------------------------------------------
+
+  /// Free-text area name, e.g. "Salt Lake Sector 5". Deliberately NOT a precise
+  /// address — an area is enough to place a trip in a demand zone.
+  homeArea String
+
+  /// Where they travel to on a normal day.
+  destinationArea String
+  destinationType DestinationType @default(WORK)
+
+  /// How they usually get there.
+  primaryMode TransportMode
+
+  // --- Step 2: the schedule --------------------------------------------------
+
+  /// 24-hour "HH:MM". Stored as text because it is a wall-clock time of day,
+  /// not a moment in time — it means "09:00 every working day", not one date.
+  usualDeparture String
+
+  /// The time they need to have arrived by, "HH:MM".
+  requiredArrival String
+
+  /// How long the trip normally takes them, in minutes, in light traffic.
+  /// Supplied by the user — CityFlow AI does not yet do live route timing, and
+  /// inventing a number here would make every estimate downstream dishonest.
+  typicalJourneyMinutes Int @default(20)
+
+  /// Which days this routine applies to, e.g. ["MON","TUE","WED","THU","FRI"].
+  travelDays String[]
+
+  /// Whether the departure time can move at all. If false, CityFlow AI will
+  /// still show demand, but will not suggest a different time.
+  isFlexible Boolean @default(true)
+
+  /// How far the departure may move, in minutes (0, 15, 30 or 60).
+  flexibilityMinutes Int @default(15)
+
+  // --- Step 3: preferences ---------------------------------------------------
+
+  /// Modes the person is open to besides their primary one.
+  preferredModes TransportMode[]
+
+  /// The largest extra delay they would accept versus their normal arrival.
+  maxAcceptableDelayMinutes Int @default(15)
+
+  willingToLeaveEarlier Boolean @default(true)
+  willingToLeaveLater   Boolean @default(false)
+
+  carpoolInterest         Boolean @default(false)
+  publicTransportInterest Boolean @default(false)
+
+  // --- Step 4: privacy choices ----------------------------------------------
+
+  /// Whether this person's (anonymised) routine may be counted in the
+  /// city-level demand totals used for planning.
+  shareAggregatedDemand Boolean @default(true)
+
+  /// Master switch. When false, every specific preference below is ignored and
+  /// nothing is sent — one control the person can always find and trust.
+  allowNotifications Boolean @default(true)
+
+  // --- PHASE 6: what specifically they want to hear about -------------------
+  //
+  // Separate flags rather than one switch because these have very different
+  // characters: a daily departure suggestion is expected and useful, while a
+  // notification every time a phone sensor feels a bump would be intolerable.
+  // Bundling them means the only way to stop the annoying one is to lose the
+  // useful one, which is how people end up turning everything off.
+
+  notifyDailyRecommendation Boolean @default(true)
+  notifyTrafficAlerts       Boolean @default(true)
+  notifyRoadDetections      Boolean @default(false)
+  notifyRewards             Boolean @default(true)
+
+  /// How long to keep this person's own travel history, in days.
+  /// Aggregated counts are never personal and are unaffected by this.
+  locationHistoryRetentionDays Int @default(180)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("travel_profiles")
+}
+
+enum DestinationType {
+  WORK
+  COLLEGE
+  SCHOOL
+  OTHER
+}
+
+enum TransportMode {
+  CAR
+  BIKE
+  BUS
+  METRO
+  WALK
+  CYCLE
+  OTHER
+}
+
+// -----------------------------------------------------------------------------
+// RECOMMENDATION — what we suggested, and what the person actually did
+// -----------------------------------------------------------------------------
+
+/// One recommendation per user per day.
+///
+/// Storing the demand figures alongside the recommendation matters: it is what
+/// makes "why am I seeing this?" answerable later, and it is what lets us show
+/// an honest history instead of re-deriving numbers that have since changed.
+model Recommendation {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// PHASE 6 — which routine this recommendation is for.
+  ///
+  /// Nullable only so rows written before journeys existed survive the
+  /// migration. Every new row sets it. `scripts/migrate-journeys.mjs` backfills
+  /// the old rows onto each person's first journey.
+  journeyId String?
+  journey   Journey? @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+
+  /// The travel date this recommendation is for (date only, no time).
+  travelDate DateTime @db.Date
+
+  /// City the demand figures were computed for.
+  cityCode String
+
+  /// The person's normal departure at the time of the recommendation.
+  usualDeparture String
+
+  /// What CityFlow AI suggested, "HH:MM".
+  recommendedDeparture String
+
+  /// Predicted demand index (0-100) at each of those two times.
+  demandAtUsual       Int
+  demandAtRecommended Int
+
+  /// Plain-language explanation shown to the user.
+  reason String
+
+  /// Whether the person took the suggestion.
+  status RecommendationStatus @default(PENDING)
+
+  /// The departure time the person actually decided on, once they choose.
+  chosenDeparture String?
+
+  /// PHASE 3 — set when the city-wide optimiser changed this recommendation
+  /// after other people's confirmed plans shifted demand.
+  updatedByOptimiser Boolean @default(false)
+
+  /// Plain-language explanation of WHY it was updated, shown as a notification.
+  /// Null when the recommendation has never been re-optimised.
+  updateReason String?
+
+  /// False until the person has seen the update notice.
+  updateAcknowledged Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// PHASE 6 — how many reward points this recommendation is worth if followed.
+  /// Stored at generation time so the offer cannot change after the fact.
+  pointsOffered Int @default(0)
+
+  /// True once points were actually credited, so a double submit or a retry can
+  /// never pay twice. The ledger in `reward_transactions` is the real record.
+  pointsAwarded Boolean @default(false)
+
+  /// PHASE 6 — modelled minutes saved versus departing at the usual time.
+  ///
+  /// THIS IS A MODEL ESTIMATE, NOT A MEASUREMENT. It is the difference between
+  /// the journey time the demand model expects at the usual slot and at the
+  /// recommended slot, using the person's own light-traffic journey time. No
+  /// real journey was timed. Every screen that shows it labels it as an
+  /// estimate and links to the method. See lib/demand/savings.ts.
+  estimatedMinutesSaved Int @default(0)
+
+  /// One recommendation per routine per travel date.
+  ///
+  /// WHY NOT (userId, travelDate): a person may now have several routines on
+  /// the same day — a morning commute and an evening return are two rows.
+  @@unique([journeyId, travelDate])
+  @@index([userId, travelDate])
+  @@index([cityCode, travelDate])
+  @@map("recommendations")
+}
+
+enum RecommendationStatus {
+  /// Shown, not yet acted on.
+  PENDING
+  /// The person chose the recommended time.
+  ACCEPTED
+  /// The person chose to keep their usual time.
+  KEPT_USUAL
+  /// The person set some other time of their own.
+  CUSTOM
+}
+
+// =============================================================================
+// PHASE 3 — travel intentions, aggregated demand, network events
+// =============================================================================
+
+/// A confirmed change to a person's travel plan for one specific date.
+///
+/// THIS IS THE STRUCTURED TRUTH, NOT THE CHAT TEXT.
+/// The assistant's job is to turn a sentence into one of these rows. The raw
+/// conversation is never stored and is never the source of truth — if the
+/// parser understood something wrongly, the person corrects the STRUCTURED
+/// value on a confirmation card before anything is written.
+model TravelIntention {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Which routine this plan changes.
+  ///
+  /// Nullable for rows written before journeys existed. A NULL here means "the
+  /// person's only routine", which is what it meant when there could only be one.
+  journeyId String?
+  journey   Journey? @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+
+  /// The date this plan applies to (date only, no time).
+  travelDate DateTime @db.Date
+
+  cityCode String
+
+  /// Normalised area names. See lib/demand/zones.ts for how these are derived.
+  originZone      String
+  destinationZone String
+
+  /// What the person's saved routine says, "HH:MM".
+  plannedDeparture String
+
+  /// What they now intend to do, "HH:MM".
+  updatedDeparture String
+
+  transportMode TransportMode
+
+  status IntentionStatus @default(CONFIRMED)
+
+  /// Where the intention came from, so chat-driven changes can be told apart
+  /// from ones made directly on the dashboard.
+  source IntentionSource @default(CHAT)
+
+  /// True once this row has been counted into the aggregated demand table.
+  /// Prevents a retry or a double submit from inflating city demand.
+  countedInDemand Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One live intention per routine per date. A new one supersedes the old.
+  ///
+  /// Was (userId, travelDate) until journeys existed — which silently made
+  /// "I'm leaving late tomorrow" overwrite the plan for the person's OTHER trip
+  /// that day.
+  @@unique([journeyId, travelDate])
+  @@index([userId, travelDate])
+  @@index([cityCode, travelDate, updatedDeparture])
+  @@map("travel_intentions")
+}
+
+enum IntentionStatus {
+  /// Counted in aggregated demand.
+  CONFIRMED
+  /// The person said they are not travelling.
+  CANCELLED
+  /// Replaced by a newer intention for the same date.
+  SUPERSEDED
+}
+
+enum IntentionSource {
+  CHAT
+  DASHBOARD
+}
+
+/// Aggregated demand for one city, one date, one 15-minute slot.
+///
+/// PRIVACY: this table holds COUNTS ONLY. There is no user id, no CityFlow ID
+/// and no route here — it is deliberately impossible to work backwards from a
+/// row to a person. This is the table the Admin Portal reads in Phase 4.
+model DemandSlotAggregate {
+  id String @id @default(cuid())
+
+  cityCode   String
+  travelDate DateTime @db.Date
+
+  /// Slot start, in minutes since midnight (0, 15, 30 …).
+  slotMinutes Int
+
+  /// How many confirmed trips are expected to start in this slot.
+  confirmedTrips Int @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([cityCode, travelDate, slotMinutes])
+  @@index([cityCode, travelDate])
+  @@map("demand_slot_aggregates")
+}
+
+/// Something happening on the network that changes demand or capacity.
+///
+/// NOTHING IS CONNECTED TO A LIVE FEED. Rows are entered by hand (the Admin
+/// Portal gains a form in Phase 4). The model exists so that when a real
+/// accident, closure or weather feed is available, it writes rows here and the
+/// prediction, recommendation and notification path already works end to end.
+model NetworkEvent {
+  id String @id @default(cuid())
+
+  cityCode String
+  kind     NetworkEventKind
+
+  /// Free-text area this affects, normalised the same way as travel zones.
+  /// Null means the whole city.
+  affectedZone String?
+
+  /// When the event applies, as minutes since midnight on `eventDate`.
+  eventDate    DateTime @db.Date
+  startMinutes Int
+  endMinutes   Int
+
+  /// How much this pushes the demand index up, in index points (0-60).
+  /// A closure reduces capacity, which shows up here as higher effective demand.
+  demandImpact Int @default(15)
+
+  description String
+
+  /// Where the row came from. "manual" today.
+  source String @default("manual")
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@index([cityCode, eventDate, active])
+  @@map("network_events")
+}
+
+enum NetworkEventKind {
+  ACCIDENT
+  ROAD_CLOSURE
+  WEATHER
+  PUBLIC_EVENT
+  OTHER
+}
+
+// -----------------------------------------------------------------------------
+// ASSISTANT CONVERSATION
+// -----------------------------------------------------------------------------
+
+/// One message in a person's conversation with Saarthi.
+///
+/// WHY THIS IS STORED AT ALL
+/// The conversation used to live only in the browser tab, which was the most
+/// private option but meant history vanished on every close. Since the point of
+/// the assistant is an ongoing relationship with a commuter's routine, the
+/// history is now kept per user so it is there on their next visit and on their
+/// other devices.
+///
+/// WHAT THIS DOES NOT CHANGE
+/// The transcript is still NEVER the source of truth. Every travel decision the
+/// system acts on lives in `travel_intentions` as structured data that the
+/// person explicitly confirmed. Nothing reads these rows to make a decision —
+/// they exist only so the person can see what was said.
+///
+/// The person can delete the whole conversation at any time from the assistant
+/// page, and deleting their account removes it with them.
+model ChatMessage {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role ChatRole
+
+  /// What was said. Plain text.
+  text String
+
+  /// A snapshot of the proposal card shown with an assistant message, so the
+  /// history renders exactly as it did at the time — including the numbers,
+  /// which would otherwise have moved on.
+  proposal Json?
+
+  /// A "take me there" link shown under an answer, e.g. {label, href}.
+  ///
+  /// Stored rather than recomputed because the answer it belongs to is stored.
+  /// Re-deriving it on every read would mean the transcript could silently
+  /// start pointing somewhere the original answer never did.
+  link Json?
+
+  /// Whether this message was waiting on a Confirm press.
+  requiresConfirmation Boolean @default(false)
+
+  /// False only while a proposal is still awaiting a decision.
+  resolved Boolean @default(true)
+
+  /// What happened in the end: "Saved — you are planned to leave at…" or
+  /// "No change saved."
+  outcome String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("chat_messages")
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
+// =============================================================================
+// PHASE 4 — simulation evaluation (SUMO + OpenStreetMap)
+// =============================================================================
+
+/// One SUMO simulation run and the metrics it produced.
+///
+/// WHAT THIS IS AND IS NOT
+/// CityFlow AI does not run SUMO inside the web application — SUMO is a desktop
+/// simulator, and pretending to run it from a serverless function would be a
+/// lie. What the application does is:
+///
+///   1. export the demand it holds as a SUMO-readable origin/destination file;
+///   2. store the metrics that come back from a run;
+///   3. compare a BASELINE run against a CITYFLOW run, honestly.
+///
+/// Every row here is entered from a real run — either pasted in by the team or
+/// posted by a script after `sumo` finishes. Nothing is generated.
+model SimulationRun {
+  id String @id @default(cuid())
+
+  cityCode String
+
+  /// The demand date this run was built from.
+  travelDate DateTime @db.Date
+
+  scenario SimulationScenario
+
+  /// Where the road network came from, e.g. "OpenStreetMap extract 2026-09-01".
+  networkSource String
+
+  /// How many vehicles the run started with.
+  vehiclesDeparted Int
+
+  /// Mean travel time per vehicle, in seconds.
+  meanTravelTimeSeconds Int
+
+  /// Total time lost to congestion across all vehicles, in seconds.
+  totalDelaySeconds Int
+
+  /// The busiest 15-minute slot's vehicle count, i.e. the peak this run produced.
+  peakSlotVehicles Int
+
+  /// Mean waiting time per vehicle, in seconds.
+  meanWaitingSeconds Int
+
+  /// Anything worth recording about how the run was configured.
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  @@index([cityCode, travelDate, scenario])
+  @@map("simulation_runs")
+}
+
+enum SimulationScenario {
+  /// Everyone departs at their normal time — the "no CityFlow AI" case.
+  BASELINE
+  /// Departures follow CityFlow AI's recommendations.
+  CITYFLOW
+}
+
+// =============================================================================
+// PHASE 5 — road-condition intelligence
+// =============================================================================
+//
+// WHAT THIS PART OF THE SYSTEM IS FOR, AND WHAT IT IS NOT FOR
+//
+// CityFlow AI **identifies and prioritises** possible road problems. It does
+// NOT inspect them, schedule repairs, or track repair progress. That work
+// belongs to the Municipal Dashboard, which is a separate, already-existing
+// system. Nothing in this file models an inspection, a work order, a crew or a
+// repair status, because modelling those here would be quietly taking over a
+// responsibility that is not ours.
+//
+// The hand-off is one direction and one payload: CityFlow AI produces a
+// prioritised list; the Municipal Dashboard consumes it. See
+// docs/06-MUNICIPAL-HANDOFF.md.
+// =============================================================================
+
+/// A possible problem with a specific piece of road.
+///
+/// WHY "POSSIBLE"
+/// Neither a phone's accelerometer nor a single citizen photograph can prove a
+/// pothole exists. A hard jolt can be a speed breaker, a kerb, a dropped phone,
+/// or a genuinely broken surface. So a road issue starts life as REPORTED and
+/// is only described as "possible" — never as a confirmed defect — until enough
+/// independent reports agree. Even then it is "confirmed by multiple reports",
+/// which is a different and weaker claim than "verified by inspection". Only
+/// the municipal authority can make the second claim, and this system never
+/// makes it on their behalf.
+///
+/// MERGING
+/// Reports are merged by `cellKey` (a small geographic grid cell) plus
+/// `issueType`, so twenty people driving over the same pothole produce one
+/// issue with twenty reports, not twenty issues. See lib/roads/cell.ts.
+model RoadIssue {
+  id String @id @default(cuid())
+
+  cityCode String
+
+  /// Normalised area name, the same zone key the demand engine uses, so a road
+  /// issue can be related to how busy that area's roads actually are.
+  zoneKey String
+
+  /// Human-readable area, e.g. "Salt Lake Sector 5".
+  areaLabel String
+
+  /// Approximate location. Optional: a citizen may report an area without
+  /// granting location access, and a report with no coordinates is still useful.
+  lat Float?
+  lng Float?
+
+  /// Grid cell used to merge nearby reports of the same kind. Derived from
+  /// lat/lng where available, otherwise from the zone key.
+  cellKey String
+
+  issueType RoadIssueType
+  severity  RoadIssueSeverity @default(MEDIUM)
+
+  /// How confident we are that something is really there. Derived from
+  /// `reportCount` — never set by hand. See lib/roads/confidence.ts.
+  confidence RoadIssueConfidence @default(POSSIBLE)
+
+  /// Number of INDEPENDENT reports. One person can only raise this once, which
+  /// is what `RoadIssueReport`'s unique constraint enforces.
+  reportCount Int @default(1)
+
+  /// How many of those came from phone motion sensors rather than a person
+  /// filling in the form. Shown to the user, because an automatic detection and
+  /// a deliberate human report are not equally strong evidence.
+  sensorReportCount Int @default(0)
+
+  /// Priority score 0-100 for the municipal hand-off. Combines evidence,
+  /// severity and how many trips actually pass through the area.
+  /// Recomputed whenever a report arrives. See lib/roads/priority.ts.
+  priorityScore Int @default(0)
+
+  /// When this issue was last included in a Municipal Dashboard hand-off file.
+  /// Null means it has never been handed over.
+  handedOverAt DateTime?
+
+  // ===========================================================================
+  // PHASE 6 — the municipal repair workflow
+  // ===========================================================================
+  //
+  // WHAT CHANGED, AND WHY IT IS STILL HONEST
+  //
+  // Earlier phases stopped at the hand-off: CityFlow AI prioritised an issue
+  // and a separate system did the repair. The Municipal Dashboard now lives
+  // inside this project, so the workflow is modelled here.
+  //
+  // The honesty rule is unchanged and is now enforced by the status ladder
+  // itself. `confidence` is what CITIZEN REPORTS support and never rises above
+  // CONFIRMED_BY_REPORTS. `status` is what a NAMED MUNICIPAL OFFICER has done.
+  // Only a person moves an issue to VERIFIED, and only after inspecting it.
+  // The system never verifies anything on their behalf.
+
+  status RoadIssueStatus @default(NEW)
+
+  /// The officer who inspected this and confirmed it is real. Null until then.
+  verifiedByEmployeeId String?
+  verifiedByEmployee   Employee? @relation("VerifiedIssues", fields: [verifiedByEmployeeId], references: [id], onDelete: SetNull)
+  verifiedAt           DateTime?
+
+  /// Who the repair is assigned to. Null when nobody has picked it up.
+  assignedEmployeeId String?
+  assignedEmployee   Employee? @relation("AssignedIssues", fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
+  assignedAt         DateTime?
+
+  /// Optional target date set by whoever assigned the work.
+  dueAt DateTime?
+
+  acknowledgedAt DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+
+  /// Free-text municipal notes. Internal to the Municipal Dashboard — never
+  /// shown to the citizen who reported the issue and never exported publicly.
+  notes String?
+
+  /// Every status change, oldest first. An audit trail matters here: this is
+  /// public-works record-keeping, and "who marked this repaired, and when" is
+  /// exactly the question that gets asked later.
+  events RoadIssueEvent[]
+
+  firstReportedAt DateTime @default(now())
+  lastReportedAt  DateTime @default(now())
+
+  reports RoadIssueReport[]
+
+  /// Two reports of the same kind of problem in the same small cell are the
+  /// same problem.
+  @@unique([cellKey, issueType])
+  @@index([cityCode, confidence])
+  @@index([cityCode, priorityScore])
+  @@index([cityCode, status])
+  @@index([assignedEmployeeId, status])
+  @@index([zoneKey])
+  @@map("road_issues")
+}
+
+/// One person's contribution to a road issue.
+///
+/// PRIVACY
+/// `userId` exists for exactly two reasons: so one person cannot inflate an
+/// issue's evidence by reporting it twenty times, and so somebody can see and
+/// withdraw their own reports. It is never selected by any Admin Portal query,
+/// never appears in a CSV export, and never appears in the Municipal Dashboard
+/// hand-off — that payload carries locations and counts, never reporters.
+model RoadIssueReport {
+  id String @id @default(cuid())
+
+  roadIssueId String
+  roadIssue   RoadIssue @relation(fields: [roadIssueId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  source RoadIssueSource
+
+  /// What the person typed. Optional, and absent for sensor detections.
+  description String?
+
+  /// A small photo, stored as a data URL.
+  ///
+  /// HONEST LIMITATION: a database column is not an image store. The browser
+  /// downscales every photo to at most 1000px and re-encodes it as JPEG before
+  /// upload, and the server refuses anything over ~200 KB, which keeps this
+  /// workable on a free Postgres plan. A production deployment would put these
+  /// in object storage and keep a URL here instead. That change touches this
+  /// column and the upload route, and nothing else.
+  photo String?
+
+  /// For sensor detections: the peak vertical acceleration recorded, in m/s².
+  /// Null for human reports. Kept so a detection threshold can be tuned later
+  /// against real data rather than guessed at again.
+  impactMagnitude Float?
+
+  createdAt DateTime @default(now())
+
+  /// One person contributes at most one report per issue.
+  @@unique([roadIssueId, userId])
+  @@index([userId, createdAt])
+  @@map("road_issue_reports")
+}
+
+enum RoadIssueType {
+  POTHOLE
+  BROKEN_SURFACE
+  WATERLOGGING
+  UNMARKED_SPEED_BREAKER
+  DEBRIS_OR_OBSTRUCTION
+  OPEN_MANHOLE
+  POOR_STREET_LIGHTING
+  OTHER
+}
+
+enum RoadIssueSeverity {
+  /// Noticeable, no need to slow down much.
+  LOW
+  /// Everyone slows down or swerves for it.
+  MEDIUM
+  /// Dangerous — likely to damage a vehicle or cause a fall.
+  HIGH
+}
+
+/// How strong the evidence is. Derived from the number of independent reports.
+enum RoadIssueConfidence {
+  /// A single report. Described everywhere in the UI as a "possible road issue".
+  POSSIBLE
+  /// Several independent reports agree.
+  LIKELY
+  /// Many independent reports agree. Still NOT "verified" — only the municipal
+  /// authority can verify a defect by inspecting it.
+  CONFIRMED_BY_REPORTS
+}
+
+enum RoadIssueSource {
+  /// A person filled in the report form.
+  CITIZEN_REPORT
+  /// A phone's motion sensors detected a jolt while travelling.
+  SENSOR_DETECTION
+}
+
+// =============================================================================
+// PHASE 6 — routines, one-off trips, rewards, municipal workforce, config
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// ORGANISATION PARTICIPATION
+// -----------------------------------------------------------------------------
+
+/// An employer, campus or institution taking part in demand smoothing.
+///
+/// WHY ORGANISATIONS MATTER MORE THAN INDIVIDUALS HERE
+/// A single commuter can move their departure by fifteen minutes. An employer
+/// with two thousand staff can stagger start times, and that is a far larger
+/// lever on a morning peak than any number of individual nudges. This model
+/// exists so the product can show an organisation what its own people's
+/// flexibility adds up to.
+///
+/// PRIVACY: an organisation sees COUNTS AND DISTRIBUTIONS ONLY — how many staff
+/// participate, and the shape of their departures. It never sees which of its
+/// employees is registered, what any individual chose, or whether a named person
+/// followed a recommendation. Building it any other way would turn a civic tool
+/// into workplace surveillance.
+model Organisation {
+  id String @id @default(cuid())
+
+  cityCode String
+
+  name String
+  kind OrganisationKind @default(COMPANY)
+
+  /// Email domain used to match staff automatically, e.g. "example.com".
+  /// Optional: an organisation may prefer to invite people by code instead.
+  emailDomain String? @unique
+
+  /// Area the site sits in, matched against the demand engine's zone keys.
+  areaLabel String?
+
+  /// Whether the city has approved this organisation for incentives.
+  isVerified Boolean @default(false)
+
+  /// Free-text note about any incentive the organisation offers its staff.
+  incentiveNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members OrganisationMember[]
+
+  @@index([cityCode, isVerified])
+  @@map("organisations")
+}
+
+enum OrganisationKind {
+  COMPANY
+  CAMPUS
+  HOSPITAL
+  GOVERNMENT
+  SCHOOL
+  OTHER
+}
+
+/// A person's membership of an organisation.
+///
+/// The person joins; the organisation is never told who they are. This row is
+/// read only to produce counts.
+model OrganisationMember {
+  id String @id @default(cuid())
+
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  joinedAt DateTime @default(now())
+
+  /// One membership per person per organisation.
+  @@unique([organisationId, userId])
+  /// A person belongs to at most one organisation at a time.
+  @@unique([userId])
+  @@map("organisation_members")
+}
+
+// -----------------------------------------------------------------------------
+// JOURNEY — one recurring routine. A person may have several.
+// -----------------------------------------------------------------------------
+
+/// A recurring journey, e.g. "Home → Office, weekdays, leave 09:00".
+///
+/// WHY THIS REPLACED THE SINGLE TravelProfile JOURNEY
+/// The original model allowed exactly one routine per person, which quietly
+/// assumed everybody makes one trip a day. Real commuters have a morning
+/// commute and an evening return at minimum, and often a school run as well.
+/// Modelling one journey meant the evening peak — the larger of the two in
+/// every city we looked at — could never be smoothed for anyone.
+///
+/// `TravelProfile` still exists and still holds the things that are true of the
+/// PERSON rather than of one trip: which modes they will accept, how much delay
+/// they tolerate, and their privacy and notification choices.
+model Journey {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Shown at the top of the journey card, e.g. "Morning commute".
+  /// Defaulted from the destination type when the person does not name it.
+  label String
+
+  // --- Where -----------------------------------------------------------------
+
+  /// Free-text area name, e.g. "Salt Lake Sector 5". Deliberately an AREA and
+  /// not a precise address: an area is enough to place a trip in a demand zone,
+  /// and a home address is not something this system needs to hold.
+  originArea String
+  /// Optional coordinates, set when the person picked the place on the map.
+  originLat  Float?
+  originLng  Float?
+
+  destinationArea String
+  destinationLat  Float?
+  destinationLng  Float?
+  destinationType DestinationType @default(WORK)
+
+  // --- When ------------------------------------------------------------------
+
+  /// 24-hour "HH:MM". A wall-clock time of day, not a moment in time.
+  usualDeparture String
+  /// The time they must have arrived by, "HH:MM".
+  requiredArrival String
+  /// Their own light-traffic journey time, in minutes. Supplied by the person.
+  typicalJourneyMinutes Int @default(20)
+  /// e.g. ["MON","TUE","WED","THU","FRI"].
+  travelDays String[]
+
+  // --- How flexible ----------------------------------------------------------
+
+  isFlexible            Boolean @default(true)
+  flexibilityMinutes    Int     @default(15)
+  willingToLeaveEarlier Boolean @default(true)
+  willingToLeaveLater   Boolean @default(false)
+
+  mode TransportMode @default(CAR)
+
+  // --- Housekeeping ----------------------------------------------------------
+
+  /// Display order in the dashboard. The person can drag to reorder.
+  sortOrder Int @default(0)
+
+  /// A paused journey keeps its history but produces no recommendations.
+  /// Better than deleting when someone is on leave for a fortnight.
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recommendations  Recommendation[]
+  travelIntentions TravelIntention[]
+
+  @@index([userId, sortOrder])
+  @@index([userId, isActive])
+  @@map("journeys")
+}
+
+// -----------------------------------------------------------------------------
+// TRIP PLAN — a one-off trip that is not part of the routine
+// -----------------------------------------------------------------------------
+
+/// "I have a 10:30 film on Saturday — when should I leave?"
+///
+/// The important difference from a Journey is the direction of the constraint.
+/// A routine starts from a departure time the person already has and asks
+/// whether it can move. A one-off trip starts from an ARRIVAL DEADLINE and
+/// works backwards, so the engine searches a much wider window and the binding
+/// constraint is "do not be late", not "do not disrupt the routine".
+model TripPlan {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  cityCode String
+
+  originArea      String
+  destinationArea String
+
+  /// The date of the trip (date only).
+  travelDate DateTime @db.Date
+  /// The time they must have arrived by, "HH:MM".
+  requiredArrival String
+  /// Their own light-traffic journey estimate, in minutes.
+  typicalJourneyMinutes Int @default(20)
+
+  mode TransportMode @default(CAR)
+  /// What kind of trip it is. Used only to word the explanation — a flight is
+  /// worth a bigger buffer than a coffee.
+  tripType TripType @default(OTHER)
+
+  // --- What the engine answered ----------------------------------------------
+
+  recommendedDeparture String
+  estimatedArrival     String
+  demandAtRecommended  Int
+  estimatedJourneyMinutes Int
+
+  /// 0-100. How much the model trusts this answer — lower when the trip is far
+  /// in the future or falls outside the hours the demand curve is shaped for.
+  confidenceScore Int @default(60)
+
+  reason String
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, travelDate])
+  @@index([cityCode, travelDate])
+  @@map("trip_plans")
+}
+
+enum TripType {
+  MEETING
+  FLIGHT
+  TRAIN
+  MOVIE
+  APPOINTMENT
+  EVENT
+  OTHER
+}
+
+// -----------------------------------------------------------------------------
+// SAVED LOCATION — home, office, gym
+// -----------------------------------------------------------------------------
+
+/// A place the person travels to often, so they do not retype it every time.
+///
+/// PRIVACY: this is the one table that could hold something close to a home
+/// address, so it is deliberately the person's own private list. Nothing here
+/// is read by the demand aggregation, the Admin Portal or any export.
+model SavedLocation {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  label String
+  kind  SavedLocationKind @default(OTHER)
+
+  area String
+  lat  Float?
+  lng  Float?
+
+  createdAt DateTime @default(now())
+
+  /// One "Home" per person, one "Office" per person — a second one is a rename,
+  /// not a new place.
+  @@unique([userId, label])
+  @@index([userId])
+  @@map("saved_locations")
+}
+
+enum SavedLocationKind {
+  HOME
+  WORK
+  EDUCATION
+  GYM
+  FAMILY
+  OTHER
+}
+
+// -----------------------------------------------------------------------------
+// REWARDS — the points ledger
+// -----------------------------------------------------------------------------
+
+/// A person's current points position.
+///
+/// WHY A BALANCE TABLE AND A LEDGER, NOT JUST A BALANCE
+/// `reward_transactions` is the source of truth; this row is a cached total.
+/// Keeping both means a disputed balance can always be recomputed from the
+/// ledger, which is the minimum standard for anything that behaves like
+/// currency. `lib/rewards/ledger.ts` writes both inside one transaction, so
+/// they cannot drift.
+model UserRewards {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Points available to spend right now.
+  pointsBalance Int @default(0)
+
+  /// Everything ever earned, never reduced by spending. This is the number the
+  /// leaderboard ranks on, so redeeming a voucher does not cost someone their
+  /// standing.
+  lifetimePoints Int @default(0)
+
+  /// Total ever spent. balance + spent should equal lifetime; a mismatch means
+  /// the ledger and the cache have drifted and is worth an alert.
+  pointsSpent Int @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("user_rewards")
+}
+
+/// One entry in the points ledger. Append-only — rows are never edited.
+model RewardTransaction {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  kind RewardKind
+
+  /// Positive when earned, negative when spent. Always signed.
+  points Int
+
+  /// Plain-language line shown in the history, e.g.
+  /// "Followed your recommended 08:45 departure".
+  description String
+
+  /// What this was for, when it relates to a specific recommendation.
+  recommendationId String?
+
+  /// Balance immediately after this entry, so history renders without having
+  /// to re-add every earlier row.
+  balanceAfter Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("reward_transactions")
+}
+
+enum RewardKind {
+  /// Departed at the time CityFlow AI recommended.
+  FOLLOWED_RECOMMENDATION
+  /// Shared a vehicle for a trip.
+  CARPOOL
+  /// Switched from a private vehicle to public transport, cycling or walking.
+  MODE_SWITCH
+  /// Reported a road issue that other reports went on to corroborate.
+  ROAD_REPORT
+  /// A one-off adjustment made by an administrator, always with a reason.
+  ADJUSTMENT
+  /// Spent on a reward. Always negative.
+  REDEMPTION
+}
+
+/// Something a person can spend points on.
+///
+/// HONEST LIMITATION: CityFlow AI has no payment or partner integration. A
+/// redemption produces a voucher CODE and nothing else — no money moves, and no
+/// partner is actually notified. The UI says so plainly rather than implying a
+/// commercial arrangement that does not exist.
+model RewardCatalogItem {
+  id String @id @default(cuid())
+
+  /// Null means the item is offered in every city.
+  cityCode String?
+
+  title       String
+  description String
+  category    RewardCategory @default(OTHER)
+
+  pointsCost Int
+
+  /// Name of the organisation offering it, e.g. "City Transport Corporation".
+  partnerName String?
+
+  /// How many are left. Null means unlimited.
+  stock Int?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  redemptions RewardRedemption[]
+
+  @@index([cityCode, isActive])
+  @@map("reward_catalog_items")
+}
+
+enum RewardCategory {
+  PARKING
+  FUEL
+  TRANSIT
+  FOOD
+  SHOPPING
+  CIVIC
+  OTHER
+}
+
+/// A person exchanging points for a catalogue item.
+model RewardRedemption {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   RewardCatalogItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  /// Cost at the moment of redemption. Stored because the catalogue price may
+  /// change later and the person's history must not silently change with it.
+  pointsSpent Int
+
+  /// The voucher code shown to the person. See the honesty note on the
+  /// catalogue model: this is a generated reference, not a partner's code.
+  voucherCode String @unique
+
+  /// Vouchers expire so the liability does not grow without limit.
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("reward_redemptions")
+}
+
+// -----------------------------------------------------------------------------
+// MUNICIPAL WORKFORCE
+// -----------------------------------------------------------------------------
+
+/// A municipal employee who inspects and repairs road issues.
+///
+/// This is a WORKFORCE record, not a user account. Most employees never sign
+/// in — a supervisor updates status on their behalf. When an employee does need
+/// access, `userId` links them to a MUNICIPAL-role account and they can then
+/// see and update only the work assigned to them.
+model Employee {
+  id String @id @default(cuid())
+
+  cityCode String
+
+  /// Municipal staff number, e.g. "BMC-1742". Unique within a city.
+  staffCode String
+
+  name  String
+  phone String?
+  email String?
+
+  /// Which part of the city they cover. Free text, matched against the same
+  /// zone keys the demand engine uses, so "unassigned area" is visible.
+  assignedArea String?
+
+  role EmployeeRole @default(FIELD_WORKER)
+
+  isActive Boolean @default(true)
+
+  /// Optional linked sign-in account.
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedIssues RoadIssue[]       @relation("AssignedIssues")
+  verifiedIssues RoadIssue[]       @relation("VerifiedIssues")
+  events         RoadIssueEvent[]
+
+  @@unique([cityCode, staffCode])
+  @@index([cityCode, isActive])
+  @@map("employees")
+}
+
+enum EmployeeRole {
+  FIELD_WORKER
+  INSPECTOR
+  SUPERVISOR
+}
+
+/// Where a road issue is in the municipal repair workflow.
+///
+/// This ladder is about MUNICIPAL ACTION, and is separate from `confidence`,
+/// which is about citizen evidence. An issue can be CONFIRMED_BY_REPORTS and
+/// still be NEW, because twenty citizens agreeing is not the council acting.
+enum RoadIssueStatus {
+  /// Reported by citizens or sensors. Nobody has looked at it.
+  NEW
+  /// An inspector has been to the site and confirmed the defect is real.
+  VERIFIED
+  /// Allocated to a named employee.
+  ASSIGNED
+  /// That employee has seen the assignment.
+  ACKNOWLEDGED
+  /// Repair work has begun.
+  IN_PROGRESS
+  /// The employee reports the repair finished.
+  COMPLETED
+  /// Inspected after repair and signed off.
+  CLOSED
+  /// Inspected and found not to be a real defect — a speed breaker, a kerb, or
+  /// a sensor artefact. Kept rather than deleted: knowing which reports were
+  /// false is how the detection threshold gets better.
+  REJECTED
+}
+
+/// One entry in a road issue's audit trail.
+model RoadIssueEvent {
+  id String @id @default(cuid())
+
+  roadIssueId String
+  roadIssue   RoadIssue @relation(fields: [roadIssueId], references: [id], onDelete: Cascade)
+
+  fromStatus RoadIssueStatus?
+  toStatus   RoadIssueStatus
+
+  /// The employee whose action this was, where there is one.
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  /// The signed-in account that made the change, for accountability when a
+  /// supervisor updates on someone else's behalf.
+  actorUserId String?
+
+  note String?
+
+  createdAt DateTime @default(now())
+
+  @@index([roadIssueId, createdAt])
+  @@map("road_issue_events")
+}
+
+// -----------------------------------------------------------------------------
+// CITY CONFIGURATION
+// -----------------------------------------------------------------------------
+
+/// Tunable thresholds, one row per city.
+///
+/// WHY THESE ARE IN THE DATABASE RATHER THAN IN CODE
+/// Every value here is a judgement call that a city should be able to make for
+/// itself. What counts as "high priority" in Bhopal is not what counts in
+/// Mumbai, and a points value that motivates people in one city may not in
+/// another. Hard-coding them would mean a redeploy every time a council changed
+/// its mind. Defaults match what the code used before this table existed, so an
+/// unconfigured city behaves exactly as it did.
+model CityConfig {
+  id       String @id @default(cuid())
+  cityCode String @unique
+
+  // --- Road issues -----------------------------------------------------------
+
+  /// Priority score at or above which an issue is flagged as high priority.
+  highPriorityThreshold Int @default(75)
+
+  /// Independent reports needed before an issue is CONFIRMED_BY_REPORTS.
+  confirmationReportCount Int @default(3)
+
+  /// Peak vertical acceleration, in m/s², above which a phone jolt is treated
+  /// as a possible road defect rather than ordinary road noise.
+  sensorImpactThreshold Float @default(14.0)
+
+  // --- Rewards ---------------------------------------------------------------
+
+  pointsForFollowingRecommendation Int @default(50)
+  pointsForCarpool                 Int @default(80)
+  pointsForModeSwitch              Int @default(100)
+  pointsForCorroboratedRoadReport  Int @default(30)
+
+  /// How long a redeemed voucher stays valid.
+  voucherValidityDays Int @default(90)
+
+  // --- Demand ----------------------------------------------------------------
+
+  /// Default flexibility window offered during onboarding, in minutes.
+  defaultFlexibilityMinutes Int @default(15)
+
+  /// Demand index at or above which a slot is treated as a peak the optimiser
+  /// should move people away from.
+  peakDemandThreshold Int @default(62)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("city_configs")
+}
+
+// -----------------------------------------------------------------------------
+// AUTH TOKENS — email verification and password reset
+// -----------------------------------------------------------------------------
+
+/// A single-use token sent to a person's email address.
+///
+/// SECURITY NOTES
+///  - Only a SHA-256 hash of the token is stored. A leaked database therefore
+///    does not hand an attacker a working password-reset link, exactly as a
+///    password hash does not hand them a password.
+///  - Tokens expire, and `usedAt` makes them single-use, so a link forwarded or
+///    left in a mailbox cannot be replayed.
+///  - Requesting a reset for an unknown address returns the same response as a
+///    known one, so this table cannot be used to discover who has an account.
+model AuthToken {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  kind AuthTokenKind
+
+  /// SHA-256 of the token that was emailed. The token itself is never stored.
+  tokenHash String @unique
+
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, kind])
+  @@map("auth_tokens")
+}
+
+enum AuthTokenKind {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}

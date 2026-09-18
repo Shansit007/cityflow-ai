@@ -1,43 +1,38 @@
+# macOS
+.DS_Store
+
+# Node
 node_modules/
-.pnpm-store/
-.next/
-out/
-dist/
-build/
-*.tsbuildinfo
-.vercel/
 
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-*.egg-info/
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-
+# Environment files — never commit secrets
 .env
 .env.local
 .env.*.local
 
-coverage/
-*.log
-npm-debug.log*
-
-.DS_Store
+# Editors
 .idea/
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
 
-_to_delete/
-next-env.d.ts
+# Python (used later for the AI / SUMO services)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
 
-# OSRM extracts and prepared graphs are large and rebuildable.
-infra/osrm/
+# Build output
+.next/
+out/
+dist/
+build/
 
-# osmnx caches raw Overpass responses here so a re-run does not re-download.
-services/engine/cache/
+# Test and coverage output
+.pytest_cache/
+coverage/
+.jest-cache/
 
-# SUMO scenarios are large generated artefacts, rebuilt by scripts/build_scenario.py
-services/engine/scenarios/
+# Logs
+*.log
+npm-debug.log*
+Claude outputs/

@@ -1,160 +1,219 @@
 # CityFlow AI
 
-A road segment jams when more vehicles enter it in a quarter of an hour than it can
-discharge. Navigation apps route around a jam that already exists. CityFlow AI works one
-step earlier: it moves _when_ people leave, so inflow stays under capacity and the jam
-does not form.
+### Smarter Departures, Smoother Journeys
 
-## The result
+CityFlow AI is a **proactive** traffic-management system.
 
-![Vehicles over segment capacity against adoption](docs/images/adoption-excess.png)
+Existing systems ask *“which road should this vehicle take?”*
+CityFlow AI asks *“how do we prevent too many vehicles from entering the road
+network at the same time?”*
 
-Bengaluru, 08:00–10:00, 61,866 commuters routed over the real OpenStreetMap network
-(126,408 directed segments). Segment capacity comes from the Indo-HCM saturation-flow
-model; the fleet is Indian-urban, 60% two-wheelers. The busiest segment in the cohort
-runs at **2.8× its capacity** at peak.
+Instead of rerouting people once congestion already exists, CityFlow AI predicts
+travel demand ahead of time, learns how flexible each commuter is, and
+distributes trips across nearby departure slots so the peak becomes less sharp
+for everyone.
 
-At 20% adoption:
+---
 
-|                             | oversubscribed segment-quarter-hours | vehicles over capacity |
-| --------------------------- | ------------------------------------ | ---------------------- |
-| nobody shifts               | 94                                   | 5,115                  |
-| **capacity-aware plan**     | **64**                               | **2,571** (−49.7%)     |
-| independent per-user advice | 78                                   | 4,476 (−12.5%)         |
+## 👉 New here? Start with the setup guide
 
-Coordination moved 1,612 travellers, a median of 15 minutes. The naive design moved 897
-and removed a quarter as much. Per traveller actually inconvenienced, coordination clears
-1.58 vehicles of excess against 0.71 — **2.2× more benefit per morning disrupted**.
+**[docs/00-SETUP-STEP-BY-STEP.md](docs/00-SETUP-STEP-BY-STEP.md)** — click-by-click
+instructions to run the project and deploy it online for free.
 
-Only 9,208 of the 61,866 journeys were movable at all. The other 85% are non-adopters and
-people with no slack; the allocator plans _around_ them rather than assuming them away.
+Other documentation:
 
-## Coordination is the mechanism, not the advice
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how the system is put together
+- [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md) — colours, theming, accessibility rules
+- [docs/04-SUMO-EVALUATION.md](docs/04-SUMO-EVALUATION.md) — how to test the core claim with SUMO
+- [docs/07-SAARTHI.md](docs/07-SAARTHI.md) — how the assistant works
+- [docs/09-RESULTS.md](docs/09-RESULTS.md) — **the simulation result, with its limitations**
+- [docs/10-PHASE-6.md](docs/10-PHASE-6.md) — **what Phase 6 added, and what it changed its mind about**
+- [docs/11-DEMO-WALKTHROUGH.md](docs/11-DEMO-WALKTHROUGH.md) — **a ten-minute end-to-end demo, in order**
+- [ml/README.md](ml/README.md) — the Python forecasting and optimisation service
 
-![Oversubscribed windows against adoption](docs/images/adoption-windows.png)
+---
 
-The orange line is what happens when every traveller is told their own best departure
-time — the advice a navigation app can already give. It helps while few people follow it
-and then turns on itself: each traveller is routed into the same trough, which becomes the
-new peak. At 50% adoption it leaves the network **0.8% worse than telling nobody
-anything**.
+## The three portals
 
-The blue line is the same travellers with the same flexibility, placed against a shared
-ledger of what each segment has already been promised. Nothing about the traveller
-changed. Only the allocator knowing what it had already said to everybody else.
+CityFlow AI has three parts, deliberately kept apart, each with its own role:
 
-This is the entire argument for the project: the useful object is not a prediction of the
-best time to leave, it is a plan that stays feasible once acted upon.
+| Portal | Route | Who it is for | What it can see |
+|---|---|---|---|
+| **Commuter** | `/dashboard` | Citizens | Only their own data |
+| **Admin** | `/admin` | The CityFlow AI team | Aggregated city demand — never an individual |
+| **Municipal** | `/municipal` | Council road staff | Road issues and the workforce — **no commuter data at all** |
 
-## What it costs a traveller
+The separation is enforced twice: at the edge in `proxy.ts` using the signed
+session cookie, and again against the database inside every page and API route.
+A municipal officer cannot reach a single person's travel routine anywhere in
+the product, and nothing in the municipal code path is able to query one.
 
-![Distribution of departure shifts](docs/images/shift-distribution.png)
+---
 
-Two thirds of the shifts are 15 minutes or less. The empty last bucket is not a finding:
-declared flexibility in the demand model tops out at 45 minutes, and the allocator never
-exceeds what a traveller declared. What the shape shows is that it rarely needs to go near
-that ceiling. Placement order is by regret — the gap between a traveller's best and
-second-best slot — so someone with one workable option is served before someone who is
-nearly indifferent.
+## Architecture
 
-![Inflow at the busiest segment before and after](docs/images/inflow-busiest.png)
-
-## Repository
-
-| Path               | What it is                                                           |
-| ------------------ | -------------------------------------------------------------------- |
-| `apps/traveller`   | Public app: City ID sign-in, journey routines, road-defect reporting |
-| `apps/municipal`   | Internal dashboard: defect triage, priority queue, crew assignment   |
-| `services/engine`  | Capacity model, departure-slot allocator, SUMO scenarios, FastAPI    |
-| `packages/ui`      | Shared React components                                              |
-| `packages/secrets` | scrypt hashing, shared by both apps and the engine                   |
-| `infra`            | Postgres+PostGIS compose file, migrations, OSRM, demo seed           |
-| `docs`             | Design notes and measured results                                    |
-
-Two Next.js apps, deployed separately, over one Postgres+PostGIS database. Maps are
-MapLibre GL over free vector tiles. No Google Maps.
-
-## Running it
-
-Needs Node 22+, pnpm 9, Python 3.12 and Docker.
-
-```sh
-git clone https://github.com/shreyagoyal9/cityflow-ai.git
-cd cityflow-ai
-cp .env.example .env             # AUTH_SECRET: openssl rand -base64 48
-pnpm install
-
-docker compose -f infra/docker-compose.yml up -d postgres
-set -a; . ./.env; set +a         # DATABASE_URL, for the seed script
-python infra/seed_demo.py        # staff, wards and 180 defects for the dashboard
-
-pnpm dev                         # traveller :3000, municipal :3001
+```
+                    ┌──────────────────────────────┐
+   Browser ───────► │  Next.js 16 (TypeScript)     │
+                    │  3 portals, all API routes   │
+                    │  Prisma ── PostgreSQL        │
+                    └──────────┬───────────────────┘
+                               │ HTTP, 2.5s timeout,
+                               │ falls back silently
+                    ┌──────────▼───────────────────┐
+                    │  FastAPI (Python)            │
+                    │  Prophet + XGBoost forecast  │
+                    │  OR-Tools CP-SAT optimiser   │
+                    │  NetworkX corridors          │
+                    │  Redis cache (optional)      │
+                    └──────────────────────────────┘
 ```
 
-The compose file applies `infra/migrations` on first start. `seed_demo.py` prints the
-sign-in the dashboard needs.
+**Why two services.** Prophet, XGBoost and OR-Tools are Python libraries with
+no usable JavaScript equivalent, and none of them run on Vercel's serverless
+runtime. So the forecasting brain is a separate FastAPI service.
 
-The Today screen plans against the load the city has already committed, so it needs a
-road network and a background to plan around. Both come from the engine, below; until
-they are loaded it says so rather than inventing a recommendation.
+**Why the web app survives without it.** The ML service is optional. If it is
+not configured, is asleep, or times out, the web application falls back to its
+own TypeScript demand model and the Admin Portal says which one produced the
+numbers on screen. Recommendations degrade in quality; they never disappear.
+That is deliberate — a free-tier container that sleeps after 15 minutes should
+not be able to take the product down during a demonstration.
 
-## Reproducing the result
+---
 
-The engine's extras are separate because the web service never needs SUMO.
+## Current status
 
-```sh
-cd services/engine
-pip install -e ".[sim,dev]"
+| Phase | Scope | Status |
+|---|---|---|
+| **1** | Foundation, design system, landing page, city selection, theming, authentication, anonymous CityFlow ID | ✅ |
+| **2** | Travel-routine onboarding, demand model, recommendation engine, commuter dashboard, Leaflet map | ✅ |
+| **3** | AI assistant, travel-intent recognition, confirmed plans, demand aggregation, city-wide re-optimisation | ✅ |
+| **4** | Admin Portal, demand heatmap, reports, SUMO + OpenStreetMap evaluation | ✅ |
+| **5** | Road-issue reporting, phone road-impact detection, participation, accessibility and security pass | ✅ |
+| **6** | Python ML service, multiple journeys, one-off trip planning, rewards ledger, Municipal Dashboard, weather, email verification and password reset, per-city configuration, Docker Compose, CI | ✅ |
 
-python scripts/load_network.py   --city BLR      # OSM to PostGIS, once
-python scripts/build_scenario.py --city BLR      # PostGIS to a SUMO network
-python scripts/build_demand.py   --city BLR      # gravity model to a population
-python scripts/run_baseline.py   --city BLR      # route it, and check the run is valid
-python scripts/run_sweep.py      --city BLR --demand-share 1.0
-python scripts/plot_results.py   --city BLR
+---
 
-python scripts/seed_slots.py     --city BLR    # the background Today plans around
-uvicorn app.main:app --port 8000               # what Today asks for a departure
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Web framework | Next.js 16 (App Router) + TypeScript |
+| Styling | Tailwind CSS v4 with CSS-variable design tokens |
+| Database | PostgreSQL (Neon free plan, or Postgres in Docker) |
+| ORM | Prisma |
+| Auth | bcrypt password hashing + JWT session in an httpOnly cookie |
+| Forecasting | **Prophet** + **XGBoost** (FastAPI service) |
+| Optimisation | **Google OR-Tools** CP-SAT multi-agent scheduling |
+| Network modelling | **NetworkX** |
+| Caching | Redis (optional — the service runs without it) |
+| Maps | Leaflet + OpenStreetMap |
+| Weather | Open-Meteo (free, no API key) |
+| Simulation | SUMO + OpenStreetMap road network |
+| Road sensing | Browser DeviceMotion + Geolocation — no app, no SDK |
+| Email | Resend HTTP API (optional — logs to the terminal without it) |
+| Containers | Docker Compose (web, ML, Postgres, Redis, Nginx) |
+| CI | GitHub Actions — typecheck, Jest, production build, pytest |
+| Hosting | Vercel (web) + any container host (ML) |
+
+---
+
+## Quick start
+
+### Option A — the hosted route (what production uses)
+
+```bash
+cd web
+npm install
+cp .env.example .env     # fill in DATABASE_URL and AUTH_SECRET
+npm run db:push
+npm run dev
 ```
 
-`run_sweep.py` writes `docs/results/sweep-blr.json`; every number above is read from that
-file and the charts are generated from it. Nothing in this repository restates a result by
-hand.
+Open <http://localhost:3000>. The ML service is optional; without it the
+built-in demand model is used and the app tells you so.
 
-## What this is not
+### Option B — the whole stack in Docker
 
-**The excess figures are vehicles over modelled capacity, not minutes of delay.** Removing
-half the over-capacity vehicles is not a claim that anyone's journey got half as long, and
-the two are not proportional. A figure in minutes needs the allocated departures simulated
-against the baseline in SUMO, which `run_allocation.py` writes the scenario for but which
-has not been run.
+```bash
+docker compose up --build
+```
 
-**The demand is synthetic.** Origins and destinations come from a gravity model over OSM
-building density and named employment districts, not from observed travel surveys. The
-network, the routing and the capacity model are real; who wants to go where is a guess
-with a defensible shape.
+Open <http://localhost:8080>. This brings up the web app, the Python ML
+service, Postgres, Redis and Nginx with no accounts or API keys required.
 
-**The engine does not predict travel time.** Today recommends a departure and says how
-many roads on the route are over capacity at that time against the traveller's usual
-one, which is a claim it can support. It does not tell anyone their journey will be
-shorter, because nothing here models journey time under load yet.
+> Requires **Node 22+** and, for the ML service, **Python 3.10+** (3.9 will not
+> work — see [ml/README.md](ml/README.md)).
 
-**Path offsets assume free-flow speeds**, so the allocator's view of when a trip reaches
-the far end of its route is optimistic under load. It errs in a known direction; fixing it
-needs measured per-interval edge speeds from the baseline run.
+---
 
-Origin and destination are stored as ~600 m geohash cells, computed in the browser. Exact
-addresses never leave the device. This is data minimisation, not end-to-end encryption —
-see [docs/privacy.md](docs/privacy.md).
+## Tests
 
-## Licence
+```bash
+cd web && npm test      # recommendation engine, trip planner, savings, workflow
+cd ml   && pytest       # forecasting, and the smoothing claim itself
+```
 
-MIT. See [LICENSE](LICENSE).
+The ML suite is the one that matters most. It asserts the product's central
+claim directly: that the optimiser **conserves total demand**, that **no slot
+ends up busier than the original peak**, and that somebody who declared no
+flexibility is **never moved**, however much better the objective would be.
 
-## Docs
+---
 
-- [docs/engine.md](docs/engine.md) — capacity, demand, the allocator, and the two ways a
-  simulation run turned out to be invalid
-- [docs/architecture.md](docs/architecture.md) — why two apps over one database
-- [docs/data-model.md](docs/data-model.md) — schema and the privacy constraints in it
-- [docs/privacy.md](docs/privacy.md) — what is stored, at what precision, and why
+## Principles this project holds to
+
+1. Do not move congestion from one time to another — **smooth demand**.
+2. Recommendations are **suggestions**, never instructions.
+3. Predictions are **estimates**, never presented as certainties.
+4. Every recommendation explains **why**.
+5. Individual identity stays out of city-level analysis — an anonymous
+   **CityFlow ID** carries travel behaviour instead.
+6. The Municipal Dashboard has **no authority over traffic recommendations**
+   and no access to commuter data.
+7. A detected road impact is a **possible** issue until independent reports
+   agree — and even then it is "confirmed by reports", never "verified". Only a
+   named inspector who visited the site can verify a defect.
+8. **No figure is shown without its provenance.** Where an estimate is
+   displayed — time saved, fuel not burned — the method and the fact that
+   nothing was measured appear beside it, in body text, not a tooltip.
+9. The assistant only describes features that exist. When something is not
+   built, it says so rather than sending somebody looking for it.
+
+### One principle we changed our mind about
+
+Phases 1–5 refused to show **any** "time saved" figure, on the grounds that no
+real journey had been timed. That reasoning was sound, and the risk it guarded
+against is real: a number like "8 minutes saved" outlives every caveat printed
+next to it.
+
+Phase 6 shows the figure anyway, because a commuter deciding whether to
+reorganise their morning deserves to know the expected size of the prize, and
+"demand index 74 versus 51" does not answer that for most people. The risk is
+now **managed rather than avoided**: the figure is derived only from values the
+system actually holds, floored rather than rounded so it never overstates,
+suppressed entirely when it falls inside the model's own noise, and every
+component that renders it is required to render the method with it. See
+`web/src/lib/demand/savings.ts`, where the reasoning is written out in full.
+
+---
+
+## Does it work?
+
+In simulation on an OpenStreetMap network of central Bhopal with 436 modelled
+road trips, applying CityFlow AI's recommendations reduced the busiest
+15-minute departure window from **52 to 39 vehicles (−25%)**, with departures
+falling across the whole 08:00–09:45 peak and rising on the earlier shoulder.
+**No new peak formed elsewhere** — which is the difference between smoothing
+demand and relocating congestion.
+
+Mean travel time was unchanged, as expected at a vehicle count well below
+network capacity.
+
+Full method, the reason only 25% of commuters could be moved, a parameter
+sensitivity analysis and every limitation: **[docs/09-RESULTS.md](docs/09-RESULTS.md)**.
+
+---
+
+> An academic capstone project. CityFlow AI is not an official government service.
