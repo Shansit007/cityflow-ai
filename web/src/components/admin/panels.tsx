@@ -328,3 +328,141 @@ export function EmptyNote({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Generic breakdown bars — reused by User Analytics and Intent Intelligence */
+/* -------------------------------------------------------------------------- */
+
+export interface BreakdownRow {
+  label: string;
+  value: number;
+  /** Optional tone for the bar itself; defaults to the primary brand colour. */
+  tone?: "primary" | "secondary";
+}
+
+/**
+ * A single-series breakdown as bars with the count and share written beside
+ * each one — the same "read the number, not the bar length" rule as
+ * ModeSplitPanel and RecommendationPanel above, generalised so new pages do
+ * not need a bespoke chart component each.
+ */
+export function BreakdownBarPanel({
+  title,
+  description,
+  rows,
+  emptyMessage,
+}: {
+  title: string;
+  description?: string;
+  rows: BreakdownRow[];
+  emptyMessage: string;
+}) {
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+
+  return (
+    <Card>
+      <CardHeader title={title} description={description} />
+
+      {total === 0 ? (
+        <EmptyNote>{emptyMessage}</EmptyNote>
+      ) : (
+        <ul className="space-y-2.5">
+          {rows.map((row) => (
+            <li key={row.label}>
+              <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
+                <span className="text-fg">{row.label}</span>
+                <span className="text-muted">
+                  <span className="font-semibold text-fg">{row.value}</span>{" "}
+                  <span className="text-xs">
+                    ({total > 0 ? Math.round((row.value / total) * 100) : 0}%)
+                  </span>
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
+                <div
+                  className={cn(
+                    "h-full rounded-full",
+                    row.tone === "secondary" ? "bg-secondary" : "bg-primary"
+                  )}
+                  style={{
+                    width: `${
+                      total > 0 ? Math.max((row.value / total) * 100, row.value > 0 ? 2 : 0) : 0
+                    }%`,
+                  }}
+                  aria-hidden="true"
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Notification feed — real, timestamped RoadIssueEvent history             */
+/* -------------------------------------------------------------------------- */
+
+export function NotificationList({
+  items,
+  truncated,
+}: {
+  items: Array<{
+    id: string;
+    createdAt: Date;
+    fromStatus: string | null;
+    toStatus: string;
+    areaLabel: string;
+    issueType: string;
+    note: string | null;
+    actor: string | null;
+  }>;
+  truncated: boolean;
+}) {
+  if (items.length === 0) {
+    return (
+      <EmptyNote>
+        No road-issue status changes have been recorded for this city yet. This feed fills
+        in as the Municipal Dashboard team verifies, assigns and repairs reported issues.
+      </EmptyNote>
+    );
+  }
+
+  return (
+    <div>
+      <ul className="space-y-2.5">
+        {items.map((item) => (
+          <li
+            key={item.id}
+            className="rounded-lg border border-border-base p-3.5"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="text-sm text-fg">
+                <span className="font-medium">{item.issueType}</span>
+                {" moved to "}
+                <span className="font-medium">{item.toStatus}</span>
+                {" — "}
+                <span className="text-muted">{item.areaLabel}</span>
+              </p>
+              <span className="shrink-0 text-xs text-subtle">{relativeTo(item.createdAt)}</span>
+            </div>
+            {item.note && (
+              <p className="mt-1.5 text-xs leading-relaxed text-muted">&ldquo;{item.note}&rdquo;</p>
+            )}
+            {item.actor && (
+              <p className="mt-1 text-xs text-subtle">by {item.actor}</p>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {truncated && (
+        <p className="mt-4 text-xs leading-relaxed text-subtle">
+          Showing the most recent {items.length} status changes. Older activity is still in
+          the record but not shown here.
+        </p>
+      )}
+    </div>
+  );
+}

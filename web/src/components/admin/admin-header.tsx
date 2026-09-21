@@ -32,8 +32,13 @@ const ADMIN_LINKS = [
   { href: "/admin", label: "Overview", exact: true },
   { href: "/admin/demand", label: "Demand" },
   { href: "/admin/roads", label: "Road conditions" },
+  { href: "/admin/users", label: "Users" },
+  { href: "/admin/accounts", label: "Accounts" },
+  { href: "/admin/intent", label: "Intent" },
+  { href: "/admin/notifications", label: "Notifications" },
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/simulation", label: "Simulation" },
+  { href: "/admin/system", label: "System" },
   { href: "/admin/config", label: "Configuration" },
 ];
 
@@ -75,14 +80,17 @@ export function AdminHeader() {
               </span>
             </Link>
 
-            <nav aria-label="Admin Portal" className="hidden items-center gap-1 md:flex">
+            <nav
+              aria-label="Admin Portal"
+              className="hidden min-w-0 items-center gap-1 overflow-x-auto md:flex"
+            >
               {ADMIN_LINKS.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
                   aria-current={isActive(link) ? "page" : undefined}
                   className={cn(
-                    "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    "shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                     isActive(link)
                       ? "bg-primary-soft text-primary"
                       : "text-muted hover:bg-surface hover:text-fg"
