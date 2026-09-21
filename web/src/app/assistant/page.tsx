@@ -68,6 +68,10 @@ export default async function AssistantPage() {
 
   const city = getCity(user.cityCode);
   const mode = getTransportMode(intention?.transportMode ?? journey.mode);
+  // Whether Saarthi's optional hosted-model fallback (lib/chat/llm.ts) is
+  // configured — read here, server-side, so the page never claims a
+  // capability that isn't actually turned on for this deployment.
+  const hasLLM = Boolean(process.env.GROQ_API_KEY);
 
   const confirmedPlan =
     intention && intention.status === "CONFIRMED" ? intention.updatedDeparture : null;
@@ -106,6 +110,7 @@ export default async function AssistantPage() {
           <AssistantConsole
             initialMessages={messages}
             displayName={user.displayName ?? "there"}
+            hasLLM={hasLLM}
           />
 
           <aside className="space-y-4">
@@ -200,10 +205,15 @@ export default async function AssistantPage() {
               </p>
 
               <p className="mt-4 text-xs leading-relaxed text-subtle">
-                {ASSISTANT_NAME} recognises sentences using fixed rules, not a language model.
-                That makes it free to run, predictable, and able to show you exactly what it
-                understood — but it is not a general chatbot, and it will say so rather than
-                inventing an answer.
+                {ASSISTANT_NAME}&apos;s core recognises sentences using fixed rules, not a
+                language model — that part is free to run, predictable, and shows you exactly
+                what it understood.
+                {hasLLM
+                  ? " When it genuinely cannot follow a sentence, a hosted model gets one" +
+                    " attempt at reading it — never at inventing an answer about the app."
+                  : ""}{" "}
+                Either way, it is not a general chatbot, and it will say when it has not
+                understood rather than invent an answer.
               </p>
             </div>
           </aside>

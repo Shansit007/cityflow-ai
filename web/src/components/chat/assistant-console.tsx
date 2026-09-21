@@ -55,11 +55,14 @@ const SUGGESTION_GROUPS = [
 interface AssistantConsoleProps {
   initialMessages: ChatMessageView[];
   displayName: string;
+  /** Whether the optional Groq fallback (lib/chat/llm.ts) is configured server-side. */
+  hasLLM: boolean;
 }
 
 export function AssistantConsole({
   initialMessages,
   displayName,
+  hasLLM,
 }: AssistantConsoleProps) {
   const router = useRouter();
 
@@ -243,9 +246,12 @@ export function AssistantConsole({
               show you where to find things.
             </p>
             <p className="mx-auto mt-3 max-w-md text-xs leading-relaxed text-subtle">
-              I match patterns rather than think, so I am not a general chatbot — but I will
-              always tell you when I have not understood, and I never save anything without
-              showing you exactly what it is first.
+              My core matches patterns rather than thinks
+              {hasLLM
+                ? "; when that alone cannot follow you, a hosted model gets a second look"
+                : ", so I am not a general chatbot"}
+              . Either way, I will always tell you when I have not understood, and I never save
+              anything without showing you exactly what it is first.
             </p>
           </div>
         )}
