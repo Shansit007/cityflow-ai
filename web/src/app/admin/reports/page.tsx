@@ -5,7 +5,8 @@ import { StatTile } from "@/components/admin/panels";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
-import { loadCityOverview, loadZoneDemand } from "@/lib/admin/analytics";
+import { loadCityOverview, loadSimulationRuns, loadZoneDemand } from "@/lib/admin/analytics";
+import { loadIntentIntelligence } from "@/lib/admin/intent-intelligence";
 import { countRoadIssues } from "@/lib/roads/road-service";
 import { formatAppDate } from "@/lib/app-time";
 import { getCity } from "@/lib/cities";
@@ -68,6 +69,21 @@ const REPORTS = [
     // decided below rather than hard-coded here.
     available: null,
   },
+  {
+    id: "intent-trends",
+    title: "AI travel-intent trends",
+    description:
+      "How people are changing their plans through the assistant and the dashboard — source split, status split, and how far departures are actually moving. Aggregate figures only, no chat text.",
+    // Depends on whether any travel intention has been recorded in the window.
+    available: null,
+  },
+  {
+    id: "simulation-results",
+    title: "Simulation results",
+    description:
+      "Every baseline and CityFlow AI simulation run: travel time, delay, waiting time and peak load. The same rows the Simulation page's comparison table is built from.",
+    available: null,
+  },
 ] as const;
 
 export default async function AdminReportsPage({
@@ -78,10 +94,12 @@ export default async function AdminReportsPage({
   const params = await searchParams;
   const city = getCity(params.city);
 
-  const [overview, zones, roadIssueCount] = await Promise.all([
+  const [overview, zones, roadIssueCount, intent, simulationRuns] = await Promise.all([
     loadCityOverview(city.code),
     loadZoneDemand(city.code),
     countRoadIssues(city.code),
+    loadIntentIntelligence(city.code),
+    loadSimulationRuns(city.code),
   ]);
 
   return (
@@ -130,7 +148,13 @@ export default async function AdminReportsPage({
             // `available: null` means "it depends on the data" — today that is
             // only the road-conditions report.
             const available =
-              report.available === null ? roadIssueCount > 0 : report.available;
+              report.available !== null
+                ? report.available
+                : report.id === "road-conditions"
+                  ? roadIssueCount > 0
+                  : report.id === "intent-trends"
+                    ? intent.totalIntentions > 0
+                    : simulationRuns.length > 0;
 
             return (
             <Card key={report.id}>

@@ -17,6 +17,7 @@ import {
   loadModelledImpact,
   loadSystemHealth,
 } from "@/lib/admin/analytics";
+import { loadTodayShiftSummary } from "@/lib/admin/demand-shift";
 import { ImpactPanel } from "@/components/admin/impact-panel";
 import { appDateOnly, formatAppDate } from "@/lib/app-time";
 import { getCity } from "@/lib/cities";
@@ -43,10 +44,11 @@ export default async function AdminOverviewPage({
   const params = await searchParams;
   const city = getCity(params.city);
 
-  const [overview, health, impact] = await Promise.all([
+  const [overview, health, impact, liveBehavior] = await Promise.all([
     loadCityOverview(city.code),
     loadSystemHealth(city.code),
     loadModelledImpact(city.code, appDateOnly()),
+    loadTodayShiftSummary(city.code),
   ]);
 
   const participationRate =
@@ -106,6 +108,76 @@ export default async function AdminOverviewPage({
             detail="Moved by the city-wide optimiser to keep trips spread out"
           />
         </div>
+
+        {/* ---------------------------------------------- live city behaviour */}
+        <Card className="mt-6">
+          <CardHeader
+            title="Live city behaviour"
+            description="One consolidated read of today — demand, the current peak, and how many people have actually moved their time."
+          />
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg border border-border-base p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-subtle">
+                Demand right now
+              </p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-fg">
+                {DEMAND_LEVEL_LABEL[overview.now.level]}
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                Index {overview.now.index}/100 at {formatSlotLabel(overview.now.minutes)}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-border-base p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-subtle">
+                Current peak window
+              </p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-fg">
+                {overview.peakSlots[0] ? formatSlotLabel(overview.peakSlots[0].minutes) : "—"}
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                {overview.peakSlots[0]
+                  ? `Index ${overview.peakSlots[0].index}/100, the busiest slot predicted today`
+                  : "No peak predicted yet"}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-border-base p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-subtle">
+                People shifting today
+              </p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-fg">
+                {liveBehavior.usersShiftingToday}
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                {liveBehavior.mostSelectedNewSlot
+                  ? `Most moved to ${liveBehavior.mostSelectedNewSlot.label} (${liveBehavior.mostSelectedNewSlot.count})`
+                  : "Nobody has moved their departure time today yet"}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-border-base p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-subtle">
+                Confirmed plans trend
+              </p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-fg">
+                {liveBehavior.trend === "rising"
+                  ? "Rising"
+                  : liveBehavior.trend === "falling"
+                    ? "Falling"
+                    : liveBehavior.trend === "flat"
+                      ? "Flat"
+                      : "—"}
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                {liveBehavior.trend === null
+                  ? "Not enough history yet to compare"
+                  : "Compared with confirmed plans yesterday, same city"}
+              </p>
+            </div>
+          </div>
+        </Card>
 
         {/* ---------------------------------------------------- peak periods */}
         <div className="mt-6 grid gap-6 lg:grid-cols-3">

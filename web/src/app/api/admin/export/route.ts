@@ -3,10 +3,12 @@ import { NextResponse } from "next/server";
 import { getAdminOrNull } from "@/lib/auth/admin";
 import {
   loadCityOverview,
+  loadSimulationRuns,
   loadZoneDemand,
   REPORT_END_MINUTES,
   REPORT_START_MINUTES,
 } from "@/lib/admin/analytics";
+import { loadIntentIntelligence } from "@/lib/admin/intent-intelligence";
 import { appDateKey } from "@/lib/app-time";
 import { getCity, isCityCode } from "@/lib/cities";
 import { formatSlotLabel, toTimeString } from "@/lib/demand/time-slots";
@@ -33,6 +35,8 @@ const REPORTS = [
   "participation",
   "mode-split",
   "road-conditions",
+  "intent-trends",
+  "simulation-results",
 ] as const;
 
 type ReportId = (typeof REPORTS)[number];
@@ -235,6 +239,99 @@ export async function GET(request: Request) {
             issue.firstReportedAt.toISOString(),
             issue.lastReportedAt.toISOString(),
             issue.handedOverAt ? issue.handedOverAt.toISOString() : "not_yet",
+          ])
+        );
+        break;
+      }
+
+      case "intent-trends": {
+        /*
+          AI travel-intent trends: the same aggregate numbers Intent
+          Intelligence shows on screen — source split, status split, and how
+          far people are actually moving their departure — never a chat
+          transcript or a per-user row.
+        */
+        const intent = await loadIntentIntelligence(city.code);
+        csv = toCsv(
+          ["metric", "value"],
+          [
+            ["window_days", intent.windowDays],
+            ["total_intentions", intent.totalIntentions],
+            ["from_chat", intent.source.chat],
+            ["from_dashboard", intent.source.dashboard],
+            ["confirmed", intent.status.confirmed],
+            ["cancelled", intent.status.cancelled],
+            ["superseded", intent.status.superseded],
+            ["departures_changed", intent.departureShift.changedCount],
+            ["moved_earlier", intent.departureShift.movedEarlier],
+            ["moved_later", intent.departureShift.movedLater],
+            [
+              "avg_absolute_shift_minutes",
+              intent.departureShift.avgAbsoluteMinutes === null
+                ? "not_enough_data"
+                : intent.departureShift.avgAbsoluteMinutes.toFixed(1),
+            ],
+            ["mode_comparable", intent.modeChange.comparable],
+            ["mode_changed", intent.modeChange.changed],
+            [
+              "mode_change_rate_percent",
+              intent.modeChange.changeRate === null
+                ? "not_enough_data"
+                : intent.modeChange.changeRate.toFixed(1),
+            ],
+            ["figures_are_sampled", intent.sampled ? "yes" : "no"],
+          ]
+        );
+        break;
+      }
+
+      case "simulation-results": {
+        /*
+          Baseline vs CityFlow AI simulation runs, most recent first. Exactly
+          the rows the Simulation page's own comparison table is built from —
+          nothing recomputed for the export.
+        */
+        const runs = await loadSimulationRuns(city.code);
+
+        if (runs.length === 0) {
+          csv = toCsv(
+            ["status", "detail"],
+            [
+              [
+                "no_data",
+                "No simulation run has been recorded for this city yet. Run a baseline and a CityFlow AI simulation from /admin/simulation to populate this report.",
+              ],
+            ]
+          );
+          break;
+        }
+
+        csv = toCsv(
+          [
+            "run_id",
+            "travel_date",
+            "scenario",
+            "network_source",
+            "vehicles_departed",
+            "mean_travel_time_seconds",
+            "total_delay_seconds",
+            "peak_slot_vehicles",
+            "mean_waiting_seconds",
+            "notes",
+            "created_at",
+          ],
+          runs.map((run) => [
+            run.id,
+            run.travelDate.toISOString().slice(0, 10),
+            run.scenario,
+            run.networkSource,
+            run.vehiclesDeparted,
+            run.meanTravelTimeSeconds,
+            run.totalDelaySeconds,
+            run.peakSlotVehicles,
+            run.meanWaitingSeconds,
+            run.notes ?? "",
+            run.createdAt.toISOString(),
           ])
         );
         break;
