@@ -6,7 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
+import { ImpactDashboard } from "@/components/participation/impact-dashboard";
+import { loadModelledImpact } from "@/lib/admin/analytics";
 import { getCurrentUser } from "@/lib/auth/session";
+import { getCity } from "@/lib/cities";
 import { formatDuration } from "@/lib/demand/time-slots";
 import { loadParticipationSummary } from "@/lib/participation";
 
@@ -35,7 +38,12 @@ export default async function ParticipationPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/participation");
 
-  const summary = await loadParticipationSummary(user.id);
+  const city = getCity(user.cityCode);
+
+  const [summary, cityImpactToday] = await Promise.all([
+    loadParticipationSummary(user.id),
+    loadModelledImpact(city.code, new Date()),
+  ]);
 
   const flexibilityOffered = summary.timesAcceptedSuggestion + summary.timesChoseOwnTime;
 
@@ -85,6 +93,8 @@ export default async function ParticipationPage() {
             detail="How far your departures moved in total"
           />
         </div>
+
+        <ImpactDashboard personal={summary.personalImpact} city={cityImpactToday} cityName={city.name} />
 
         {/* ------------------------------------------------ what it means */}
         <Card className="mt-6">

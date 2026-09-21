@@ -76,6 +76,7 @@ export default async function MunicipalEmployeesPage() {
                       <th className="pb-2 text-right font-medium text-muted">Open</th>
                       <th className="pb-2 text-right font-medium text-muted">Overdue</th>
                       <th className="pb-2 text-right font-medium text-muted">Completed</th>
+                      <th className="pb-2 text-right font-medium text-muted">Completion rate</th>
                       <th className="pb-2 text-right font-medium text-muted">Mean time</th>
                       <th className="pb-2 text-right font-medium text-muted">Completed late</th>
                     </tr>
@@ -107,6 +108,9 @@ export default async function MunicipalEmployeesPage() {
                           {row.overdue > 0 ? row.overdue : "—"}
                         </td>
                         <td className="py-2.5 text-right text-fg">{row.completed}</td>
+                        <td className="py-2.5 text-right text-muted">
+                          {row.completionRate === null ? "—" : `${row.completionRate}%`}
+                        </td>
                         <td className="py-2.5 text-right text-muted">
                           {row.meanHours === null ? "—" : `${row.meanHours} hr`}
                         </td>

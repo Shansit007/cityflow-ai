@@ -2,11 +2,16 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { CitySwitcher } from "@/components/admin/city-switcher";
+import { NotificationComposer } from "@/components/admin/notification-composer";
 import { NotificationList, StatTile } from "@/components/admin/panels";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
-import { loadHighPriorityBacklog, loadNotificationFeed } from "@/lib/admin/notifications";
+import {
+  loadHighPriorityBacklog,
+  loadNotificationFeed,
+  loadSentNotifications,
+} from "@/lib/admin/notifications";
 import { formatAppDate } from "@/lib/app-time";
 import { getCity } from "@/lib/cities";
 import { issueTypeLabel } from "@/lib/roads/types";
@@ -32,9 +37,10 @@ export default async function AdminNotificationsPage({
   const params = await searchParams;
   const city = getCity(params.city);
 
-  const [feed, backlog] = await Promise.all([
+  const [feed, backlog, sent] = await Promise.all([
     loadNotificationFeed(city.code),
     loadHighPriorityBacklog(city.code),
+    loadSentNotifications(city.code),
   ]);
 
   const items = feed.items.map((item) => ({
@@ -57,6 +63,48 @@ export default async function AdminNotificationsPage({
 
           <CitySwitcher active={city.code} basePath="/admin/notifications" />
         </div>
+
+        {/* -------------------------------------------------------- composer */}
+        <div className="mt-8">
+          <NotificationComposer cityCode={city.code} />
+        </div>
+
+        {/* ---------------------------------------------------- sent notices */}
+        <Card className="mt-6">
+          <CardHeader
+            title="Sent notices"
+            description="Every notice an admin has sent to this city, most recent first."
+          />
+
+          {sent.length === 0 ? (
+            <p className="text-sm text-muted">
+              No notices have been sent to {city.name} yet. Use the form above to send one.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {sent.map((notice) => (
+                <li
+                  key={notice.id}
+                  className="rounded-lg border border-border-base bg-surface-2 p-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-fg">{notice.title}</p>
+                    <span className="text-xs text-subtle">
+                      {notice.createdAt.toLocaleString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted">{notice.message}</p>
+                  <p className="mt-1.5 text-xs text-subtle">Sent by {notice.createdByEmail}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
 
         {/* -------------------------------------------------- backlog alert */}
         <div className="mt-8 grid gap-4 sm:grid-cols-2">

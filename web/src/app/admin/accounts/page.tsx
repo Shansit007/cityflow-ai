@@ -71,7 +71,7 @@ export default async function AdminAccountsPage({
             <EmptyNote>No accounts have been registered in this city yet.</EmptyNote>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[44rem] border-collapse text-sm">
+              <table className="w-full min-w-[62rem] border-collapse text-sm">
                 <caption className="sr-only-cf">
                   Registered accounts in {city.name}, newest first
                 </caption>
@@ -91,6 +91,15 @@ export default async function AdminAccountsPage({
                     </th>
                     <th scope="col" className="py-2 pr-3 font-medium">
                       Organisation
+                    </th>
+                    <th scope="col" className="py-2 pr-3 font-medium">
+                      Transport mode
+                    </th>
+                    <th scope="col" className="py-2 pr-3 font-medium">
+                      Regular departure
+                    </th>
+                    <th scope="col" className="py-2 pr-3 font-medium">
+                      Flexibility
                     </th>
                     <th scope="col" className="py-2 font-medium">
                       Joined
@@ -117,6 +126,13 @@ export default async function AdminAccountsPage({
                       <td className="py-2.5 pr-3 text-muted">
                         {row.organisationLinked ? "Linked" : "—"}
                       </td>
+                      <td className="py-2.5 pr-3 text-muted">
+                        {row.transportModeLabel ?? "—"}
+                      </td>
+                      <td className="py-2.5 pr-3 font-mono text-xs text-muted">
+                        {row.regularDeparture ?? "—"}
+                      </td>
+                      <td className="py-2.5 pr-3 text-muted">{row.flexibility ?? "—"}</td>
                       <td className="py-2.5 text-muted">{formatDate(row.createdAt)}</td>
                     </tr>
                   ))}
@@ -139,11 +155,13 @@ export default async function AdminAccountsPage({
           </div>
           <p className="mt-3 max-w-4xl text-sm leading-relaxed text-muted">
             This table never selects an email address, display name, phone number, profile
-            picture, or anything from a travel profile, journey or chat history — the
-            boundary is in the query in lib/admin/user-analytics.ts, not just in this page.
-            An operator who genuinely needs to contact someone still has the database; this
-            view exists for understanding the accounts in a city at a glance, not for
-            looking someone up by name.
+            picture, or anything else from a travel profile, journey or chat history — no
+            home area, no destination, no journey time. Transport mode, regular departure and
+            flexibility are shown because they describe a travel pattern, not a person; the
+            boundary is in the query in lib/admin/user-analytics.ts, not just in this page. An
+            operator who genuinely needs to contact someone still has the database; this view
+            exists for understanding the accounts in a city at a glance, not for looking
+            someone up by name.
           </p>
         </div>
       </Container>

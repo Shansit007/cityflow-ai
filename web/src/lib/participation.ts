@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { aggregateSavings, estimateFuelLitres } from "@/lib/demand/savings";
 import { toMinutes } from "@/lib/demand/time-slots";
 
 /**
@@ -16,6 +17,34 @@ import { toMinutes } from "@/lib/demand/time-slots";
  * facts. "Time saved" is not, and does not appear.
  * ============================================================================
  */
+
+/**
+ * "My CityFlow Impact" — the same honestly-estimated figures the Admin
+ * Portal shows for the whole city (see `loadModelledImpact` and
+ * `ESTIMATE_CAVEAT` in demand/savings.ts), computed for one person instead.
+ *
+ * Nothing here is a new kind of number. It is the exact same model —
+ * light-traffic journey time versus the demand index at the accepted
+ * departure — run over this person's own accepted recommendations instead of
+ * the whole city's. `hasImpactData` is false, and the page shows nothing
+ * rather than zeroes, until this person has actually accepted a
+ * recommendation for a journey that has a stated light-traffic time.
+ */
+export interface PersonalImpact {
+  hasImpactData: boolean;
+  /** Confirmed travel plans — trips that went through the recommendation pipeline. */
+  tripsOptimized: number;
+  /** Times this person specifically took the suggested departure (not a custom one). */
+  recommendedDeparturesFollowed: number;
+  estimatedMinutesSaved: number;
+  estimatedPersonHours: number;
+  /** One sentence naming exactly where the time figure came from, for the most recent estimate. */
+  savingsMethod: string | null;
+  /** Confirmed or accepted trips that moved away from this person's usual time. */
+  tripsShiftedAwayFromPeak: number;
+  estimatedFuelLitres: number;
+  fuelAssumptions: string[];
+}
 
 export interface ParticipationSummary {
   memberSince: Date;
@@ -41,6 +70,7 @@ export interface ParticipationSummary {
   roadSensorDetections: number;
   /** Whether their trips are counted in city figures at all. */
   countedInCityFigures: boolean;
+  personalImpact: PersonalImpact;
 }
 
 export async function loadParticipationSummary(
@@ -60,6 +90,9 @@ export async function loadParticipationSummary(
         chosenDeparture: true,
         recommendedDeparture: true,
         updatedByOptimiser: true,
+        demandAtUsual: true,
+        demandAtRecommended: true,
+        journey: { select: { typicalJourneyMinutes: true, mode: true } },
       },
     }),
     prisma.travelIntention.groupBy({
@@ -110,6 +143,37 @@ export async function loadParticipationSummary(
   }
 
   /*
+    Personal impact: the same estimate the Admin Portal computes city-wide,
+    run over this one person's ACCEPTED recommendations that have a journey
+    with a stated light-traffic time. A recommendation whose journey was since
+    deleted contributes nothing, rather than a guessed number.
+  */
+  const acceptedWithJourney = recommendations.filter(
+    (row) => row.status === "ACCEPTED" && row.journey !== null
+  );
+
+  const personalSavings = aggregateSavings(
+    acceptedWithJourney.map((row) => ({
+      typicalJourneyMinutes: row.journey!.typicalJourneyMinutes,
+      demandAtUsual: row.demandAtUsual,
+      demandAtRecommended: row.demandAtRecommended,
+    }))
+  );
+
+  const personalVehicleTrips = acceptedWithJourney.filter(
+    (row) => row.journey!.mode === "CAR" || row.journey!.mode === "BIKE"
+  ).length;
+  const personalVehicleShare =
+    acceptedWithJourney.length === 0 ? 0 : personalVehicleTrips / acceptedWithJourney.length;
+
+  const personalFuel = estimateFuelLitres(personalSavings.totalMinutes, personalVehicleShare);
+
+  const lastAccepted = acceptedWithJourney[acceptedWithJourney.length - 1];
+  const savingsMethod = lastAccepted
+    ? `Your ${lastAccepted.journey!.typicalJourneyMinutes}-minute light-traffic journey is modelled at fewer minutes when demand is lower at the time you left.`
+    : null;
+
+  /*
     Prisma's groupBy gives one row per distinct value. These two helpers pull a
     single row's count out of that, defaulting to 0 — a status nobody has used
     simply has no row, which is not the same as an error.
@@ -134,5 +198,16 @@ export async function loadParticipationSummary(
     roadIssuesReported: roadReportCount("CITIZEN_REPORT"),
     roadSensorDetections: roadReportCount("SENSOR_DETECTION"),
     countedInCityFigures: profile?.shareAggregatedDemand ?? false,
+    personalImpact: {
+      hasImpactData: acceptedWithJourney.length > 0,
+      tripsOptimized: intentionCount("CONFIRMED"),
+      recommendedDeparturesFollowed: timesAcceptedSuggestion,
+      estimatedMinutesSaved: personalSavings.totalMinutes,
+      estimatedPersonHours: personalSavings.personHours,
+      savingsMethod,
+      tripsShiftedAwayFromPeak: timesAcceptedSuggestion + timesChoseOwnTime,
+      estimatedFuelLitres: personalFuel.litres,
+      fuelAssumptions: personalFuel.assumptions,
+    },
   };
 }

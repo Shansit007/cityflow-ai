@@ -259,6 +259,23 @@ export const simulationRunSchema = z.object({
 
 export type SimulationRunInput = z.infer<typeof simulationRunSchema>;
 
+/** Payload accepted by POST /api/admin/notifications */
+export const adminNotificationSchema = z.object({
+  cityCode: z.string().trim().min(2).max(40),
+  title: z
+    .string()
+    .trim()
+    .min(3, "Give the notice a short title")
+    .max(120, "Keep the title under 120 characters"),
+  message: z
+    .string()
+    .trim()
+    .min(3, "Write the message that will be sent")
+    .max(1000, "Keep the message under 1000 characters"),
+});
+
+export type AdminNotificationInput = z.infer<typeof adminNotificationSchema>;
+
 /* ==========================================================================
    PHASE 5 — road-condition reporting
    ========================================================================== */

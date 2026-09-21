@@ -597,6 +597,39 @@ model SimulationRun {
   @@map("simulation_runs")
 }
 
+/// An admin-authored notice, sent to a city.
+///
+/// WHY THIS EXISTS
+/// The rest of the Notification Center is read-only by design — every other
+/// item on it is inferred from something that already happened (a status
+/// change, a backlog crossing a threshold). A notice is different: an admin
+/// is choosing to say something, right now, and that choice needs a real row,
+/// not a re-reading of existing data.
+///
+/// WHY IT IS LABELLED "DEMO DELIVERY"
+/// CityFlow AI has no push notification service, SMS gateway or email sender
+/// wired up. Recording the notice here and showing it in the feed is a real,
+/// working action — the title and message really are stored — but nothing is
+/// actually pushed to a commuter's phone. The UI says so, rather than
+/// implying delivery that has not been built.
+model AdminNotification {
+  id String @id @default(cuid())
+
+  cityCode String
+
+  title   String
+  message String
+
+  /// The signed-in admin who sent it, for the audit trail. Never null — only
+  /// an authenticated admin can create one.
+  createdByEmail String
+
+  createdAt DateTime @default(now())
+
+  @@index([cityCode, createdAt])
+  @@map("admin_notifications")
+}
+
 enum SimulationScenario {
   /// Everyone departs at their normal time — the "no CityFlow AI" case.
   BASELINE

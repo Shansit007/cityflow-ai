@@ -99,6 +99,64 @@ const OPEN_STATUSES: RoadIssueStatus[] = [
   "COMPLETED",
 ];
 
+export interface SentNotification {
+  id: string;
+  title: string;
+  message: string;
+  createdByEmail: string;
+  createdAt: Date;
+}
+
+const SENT_LIMIT = 30;
+
+/** Every admin-authored notice sent to this city, most recent first. */
+export async function loadSentNotifications(cityCode: CityCode): Promise<SentNotification[]> {
+  return prisma.adminNotification.findMany({
+    where: { cityCode },
+    orderBy: { createdAt: "desc" },
+    take: SENT_LIMIT,
+    select: {
+      id: true,
+      title: true,
+      message: true,
+      createdByEmail: true,
+      createdAt: true,
+    },
+  });
+}
+
+/**
+ * Records and "sends" a notice.
+ *
+ * See the `AdminNotification` model comment for why this is labelled demo
+ * delivery: the title and message really are stored, and really do appear in
+ * the feed below, but CityFlow AI has no push/SMS/email sender wired up, so
+ * nothing is actually delivered to a commuter's phone. Claiming otherwise
+ * would be exactly the kind of invented behaviour this project refuses.
+ */
+export async function sendAdminNotification(input: {
+  cityCode: CityCode;
+  title: string;
+  message: string;
+  createdByEmail: string;
+}): Promise<SentNotification> {
+  return prisma.adminNotification.create({
+    data: {
+      cityCode: input.cityCode,
+      title: input.title,
+      message: input.message,
+      createdByEmail: input.createdByEmail,
+    },
+    select: {
+      id: true,
+      title: true,
+      message: true,
+      createdByEmail: true,
+      createdAt: true,
+    },
+  });
+}
+
 export async function loadHighPriorityBacklog(cityCode: CityCode): Promise<HighPriorityBacklog> {
   const config = await getCityConfig(cityCode);
 

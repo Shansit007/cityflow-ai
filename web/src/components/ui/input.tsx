@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import type { InputHTMLAttributes, ReactNode } from "react";
+import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -76,6 +76,76 @@ export function TextField({
           <div className="absolute inset-y-0 right-1 flex items-center">{trailing}</div>
         )}
       </div>
+
+      {hint && !error && (
+        <p id={hintId} className="mt-1.5 text-xs text-subtle">
+          {hint}
+        </p>
+      )}
+
+      {error && (
+        <p id={errorId} role="alert" className="mt-1.5 text-xs font-medium text-danger">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Multi-line text input, styled to match `TextField` and carrying the same
+ * accessibility contract: a real label, error announced via aria-describedby
+ * and role="alert", aria-invalid independent of colour.
+ */
+interface TextareaFieldProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "id"> {
+  label: string;
+  hint?: ReactNode;
+  error?: string;
+}
+
+export function TextareaField({
+  label,
+  hint,
+  error,
+  className,
+  required,
+  rows = 4,
+  ...rest
+}: TextareaFieldProps) {
+  const inputId = useId();
+  const hintId = `${inputId}-hint`;
+  const errorId = `${inputId}-error`;
+
+  const describedBy = [hint ? hintId : null, error ? errorId : null]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <div className="w-full">
+      <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-fg">
+        {label}
+        {required && (
+          <span className="ml-1 text-danger" aria-hidden="true">
+            *
+          </span>
+        )}
+      </label>
+
+      <textarea
+        {...rest}
+        id={inputId}
+        rows={rows}
+        required={required}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy.length > 0 ? describedBy : undefined}
+        className={cn(
+          "w-full resize-y rounded-lg border bg-surface px-3.5 py-2.5 text-sm text-fg",
+          "placeholder:text-subtle",
+          "transition-colors duration-150",
+          error ? "border-danger" : "border-border-strong hover:border-primary",
+          className
+        )}
+      />
 
       {hint && !error && (
         <p id={hintId} className="mt-1.5 text-xs text-subtle">

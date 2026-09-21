@@ -225,6 +225,25 @@ export async function getEmployeeDetail(cityCode: string, employeeId: string) {
   const now = new Date();
   const overdue = open.filter((issue) => issue.dueAt && issue.dueAt < now).length;
 
+  // Longest any currently-open assignment has sat with this employee, in
+  // whole days. Null when nothing is open — there is no "oldest" of zero jobs.
+  const oldestActiveDays =
+    open.length === 0
+      ? null
+      : Math.floor(
+          Math.max(
+            ...open
+              .filter((issue) => issue.assignedAt)
+              .map((issue) => now.getTime() - issue.assignedAt!.getTime())
+          ) / 86_400_000
+        );
+
+  // Of everything ever assigned, how much reached COMPLETED/CLOSED. Null
+  // rather than 0% when nothing has been assigned yet, so an empty history
+  // reads as "no data" and not as "failed every job."
+  const completionRate =
+    assigned.length === 0 ? null : Math.round((done.length / assigned.length) * 100);
+
   return {
     employee,
     assigned,
@@ -239,6 +258,8 @@ export async function getEmployeeDetail(cityCode: string, employeeId: string) {
           : Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10,
       lateCount,
       overdue,
+      oldestActiveDays,
+      completionRate,
       totalVerified: verified.length,
     },
   };
@@ -585,6 +606,11 @@ export async function loadEmployeePerformance(cityCode: CityCode) {
         issue.status !== "REJECTED"
     ).length;
 
+    // Same null-vs-zero distinction as the detail page: no history yet is
+    // not the same claim as a 0% completion rate.
+    const completionRate =
+      theirs.length === 0 ? null : Math.round((done.length / theirs.length) * 100);
+
     return {
       employee,
       assigned: theirs.length,
@@ -596,6 +622,7 @@ export async function loadEmployeePerformance(cityCode: CityCode) {
           : Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10,
       lateCount,
       overdue,
+      completionRate,
     };
   });
 }

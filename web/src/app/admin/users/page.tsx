@@ -142,6 +142,51 @@ export default async function AdminUsersPage({
           />
         </div>
 
+        {/* ------------------------------------------------- travel pattern */}
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <BreakdownBarPanel
+            title="Transport mode"
+            description="How onboarded accounts said they usually travel."
+            rows={analytics.byTransportMode.map((row) => ({
+              label: row.label,
+              value: row.count,
+            }))}
+            emptyMessage="No accounts have completed onboarding yet."
+          />
+
+          <BreakdownBarPanel
+            title="Flexibility"
+            description="Whether an account's departure can move at all."
+            rows={[
+              { label: "Flexible", value: analytics.flexibility.flexible },
+              { label: "Fixed", value: analytics.flexibility.fixed, tone: "secondary" },
+            ]}
+            emptyMessage="No accounts have completed onboarding yet."
+          />
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <BreakdownBarPanel
+            title="Regular departure window"
+            description="When onboarded accounts usually leave."
+            rows={analytics.byDepartureWindow.map((row) => ({
+              label: row.label,
+              value: row.count,
+            }))}
+            emptyMessage="No accounts have completed onboarding yet."
+          />
+
+          <BreakdownBarPanel
+            title="By organisation"
+            description="The organisations with the most linked accounts in this city."
+            rows={analytics.byOrganisation.map((row) => ({
+              label: row.name,
+              value: row.count,
+            }))}
+            emptyMessage="No accounts are linked to an organisation in this city yet."
+          />
+        </div>
+
         {/* ------------------------------------------------- privacy notice */}
         <div className="mt-8 rounded-card border border-border-base bg-surface-2 p-5">
           <div className="flex flex-wrap items-center gap-3">

@@ -90,7 +90,7 @@ export default async function MunicipalEmployeeDetailPage({
         </div>
 
         {/* -------------------------------------------------------- workload */}
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatTile label="Open jobs" value={String(stats.open)} detail="Assigned, not yet finished" />
           <StatTile
             label="Overdue now"
@@ -98,7 +98,17 @@ export default async function MunicipalEmployeeDetailPage({
             detail="Open and past its due date"
             alert={stats.overdue > 0}
           />
+          <StatTile
+            label="Oldest active"
+            value={stats.oldestActiveDays === null ? "—" : `${stats.oldestActiveDays} d`}
+            detail="Days since assignment"
+          />
           <StatTile label="Completed" value={String(stats.completed)} />
+          <StatTile
+            label="Completion rate"
+            value={stats.completionRate === null ? "—" : `${stats.completionRate}%`}
+            detail="Of everything assigned"
+          />
           <StatTile
             label="Mean repair time"
             value={stats.meanHours === null ? "—" : `${stats.meanHours} hr`}
