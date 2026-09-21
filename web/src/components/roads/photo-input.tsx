@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { analyzeSurface, type SurfaceReading } from "@/lib/roads/photo-analysis";
 import { MAX_PHOTO_DATA_URL_LENGTH } from "@/lib/validation";
 
 /**
@@ -35,10 +36,16 @@ const QUALITY_STEPS = [0.72, 0.6, 0.48, 0.38];
 interface PhotoInputProps {
   value: string | null;
   onChange: (dataUrl: string | null) => void;
+  /**
+   * Fired once per photo with the on-device surface-analysis result, or with
+   * `null` when the photo is removed. Purely informational — see
+   * lib/roads/photo-analysis.ts for exactly what it can and cannot tell.
+   */
+  onAnalysis?: (reading: SurfaceReading | null) => void;
   disabled?: boolean;
 }
 
-export function PhotoInput({ value, onChange, disabled = false }: PhotoInputProps) {
+export function PhotoInput({ value, onChange, onAnalysis, disabled = false }: PhotoInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,14 +60,17 @@ export function PhotoInput({ value, onChange, disabled = false }: PhotoInputProp
 
     setBusy(true);
     try {
-      const dataUrl = await shrinkImage(file);
-      if (!dataUrl) {
+      const shrunk = await shrinkImage(file);
+      if (!shrunk) {
         setError(
           "That photo could not be made small enough. Please try a different one."
         );
         return;
       }
-      onChange(dataUrl);
+      onChange(shrunk.dataUrl);
+      // Analysis runs on the same canvas already used to shrink the photo, so
+      // this costs nothing beyond the pixel scan itself — no second decode.
+      onAnalysis?.(analyzeSurface(shrunk.canvas));
     } catch {
       setError("That photo could not be read. Please try a different one.");
     } finally {
@@ -92,6 +102,7 @@ export function PhotoInput({ value, onChange, disabled = false }: PhotoInputProp
             disabled={disabled}
             onClick={() => {
               onChange(null);
+              onAnalysis?.(null);
               if (inputRef.current) inputRef.current.value = "";
             }}
           >
@@ -128,8 +139,13 @@ export function PhotoInput({ value, onChange, disabled = false }: PhotoInputProp
   );
 }
 
-/** Returns a data URL under the size ceiling, or null if it cannot get there. */
-async function shrinkImage(file: File): Promise<string | null> {
+/**
+ * Returns a data URL under the size ceiling plus the canvas it was drawn on
+ * (reused by the caller for on-device analysis), or null if it cannot get there.
+ */
+async function shrinkImage(
+  file: File
+): Promise<{ dataUrl: string; canvas: HTMLCanvasElement } | null> {
   const bitmap = await loadBitmap(file);
 
   const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
@@ -151,7 +167,7 @@ async function shrinkImage(file: File): Promise<string | null> {
 
   for (const quality of QUALITY_STEPS) {
     const dataUrl = canvas.toDataURL("image/jpeg", quality);
-    if (dataUrl.length <= MAX_PHOTO_DATA_URL_LENGTH) return dataUrl;
+    if (dataUrl.length <= MAX_PHOTO_DATA_URL_LENGTH) return { dataUrl, canvas };
   }
 
   return null;

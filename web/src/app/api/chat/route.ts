@@ -7,7 +7,7 @@ import {
   recordAssistantMessage,
   recordUserMessage,
 } from "@/lib/chat/history-service";
-import { parseIntent } from "@/lib/chat/intent-parser";
+import { parseIntentSmart } from "@/lib/chat/llm";
 import { getCity } from "@/lib/cities";
 import { prisma } from "@/lib/db";
 import { demandAtFor, loadDemandContext } from "@/lib/demand/aggregate";
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
         recommendation?.recommendedDeparture ?? journey.usualDeparture,
     };
 
-    const intent = parseIntent(parsed.data.message, assistantContext);
+    const intent = await parseIntentSmart(parsed.data.message, assistantContext);
     const reply = buildAssistantReply(intent, assistantContext);
 
     // Store both sides of the exchange, in order.

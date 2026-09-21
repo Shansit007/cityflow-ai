@@ -299,6 +299,7 @@ export const APP_TOPICS: AppTopic[] = [
     strongKeywords: ["pothole", "potholes"],
     answer:
       "The Road conditions page has a form — it takes about thirty seconds. Pick where, what kind of problem, and how bad it is; a photo and your exact location are optional but both help.\n\n" +
+      "If you add a photo, your phone briefly analyses it for the kind of dark, irregular patches a broken surface tends to show, and tells you what it found. That runs entirely on your device, is never sent anywhere, and is only ever a hint — it never picks the problem type or severity for you.\n\n" +
       "Your report is merged with other reports about the same spot. A single report is always shown as a “possible” road issue; it takes several independent people agreeing before it is called likely. That is deliberate — one person's word is not proof, and a system that cried wolf would be ignored.",
     where: { label: "Road conditions", href: "/roads" },
   },
@@ -528,8 +529,9 @@ export const APP_TOPICS: AppTopic[] = [
     ],
     answer:
       `I am ${ASSISTANT_NAME}, the travel guide inside CityFlow AI. Saarthi means charioteer — the one who handles the route so you can think about where you are going.\n\n` +
-      "I should be straight with you about what I am: not a large language model. I am a rule-based assistant, which means I recognise travel sentences and questions about this app by matching patterns. That is a deliberate choice — it costs nothing to run, it works the same way every time, and you can always be shown exactly why I understood something the way I did.\n\n" +
-      "The trade-off is that I am not much of a conversationalist. Ask me about your travel plan or about how CityFlow AI works and I am useful. Ask me about the weather and I will be honest that I cannot help.",
+      "I should be straight with you about what I am. My core is a rule-based assistant — I recognise travel sentences and questions about this app by matching patterns. That is deliberate: it costs nothing to run, it works the same way every time, and you can always be shown exactly why I understood something the way I did. That part of me answers almost everything, on its own, for free.\n\n" +
+      "When that part genuinely does not understand a sentence — not even a rough guess — and a hosted language model has been configured, I ask it for a second opinion on what you meant. It is never allowed to invent an answer to a question about the app, and it is never trusted to do arithmetic on a time itself — my own code does that, the same way it always has. And this changes nothing about how I save things: I still only ever store what you have seen on a card and pressed Confirm on.\n\n" +
+      "The trade-off either way is that I am not much of a conversationalist. Ask me about your travel plan or about how CityFlow AI works and I am useful. Ask me about the weather and I will be honest that I cannot help.",
   },
 ];
 

@@ -5,11 +5,13 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 
 import { PhotoInput } from "@/components/roads/photo-input";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ChoiceGroup } from "@/components/ui/choice-group";
 import { Notice, TextField } from "@/components/ui/input";
 import { isPlausibleCoordinate } from "@/lib/roads/cell";
+import type { SurfaceReading } from "@/lib/roads/photo-analysis";
 import { ROAD_ISSUE_SEVERITIES, ROAD_ISSUE_TYPES } from "@/lib/roads/types";
 import type { RoadIssueSeverity, RoadIssueType } from "@/lib/roads/types";
 
@@ -49,6 +51,7 @@ export function RoadReportForm({ defaultArea, destinationArea }: ReportFormProps
   const [severity, setSeverity] = useState<RoadIssueSeverity>("MEDIUM");
   const [description, setDescription] = useState("");
   const [photo, setPhoto] = useState<string | null>(null);
+  const [surfaceReading, setSurfaceReading] = useState<SurfaceReading | null>(null);
 
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
@@ -131,6 +134,7 @@ export function RoadReportForm({ defaultArea, destinationArea }: ReportFormProps
       // somebody reporting one problem often reports another nearby.
       setDescription("");
       setPhoto(null);
+      setSurfaceReading(null);
       setCoords(null);
 
       // Re-renders the server component above, so the new issue appears in the
@@ -265,7 +269,45 @@ export function RoadReportForm({ defaultArea, destinationArea }: ReportFormProps
           )}
         </div>
 
-        <PhotoInput value={photo} onChange={setPhoto} disabled={saving} />
+        <div>
+          <PhotoInput
+            value={photo}
+            onChange={setPhoto}
+            onAnalysis={setSurfaceReading}
+            disabled={saving}
+          />
+
+          {surfaceReading && (
+            <div className="mt-3 rounded-lg border border-border-base bg-surface-2 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-medium uppercase tracking-wider text-subtle">
+                  On-device photo check
+                </p>
+                <Badge
+                  tone={
+                    surfaceReading.band === "high"
+                      ? "high"
+                      : surfaceReading.band === "moderate"
+                        ? "moderate"
+                        : "neutral"
+                  }
+                >
+                  {surfaceReading.band === "high"
+                    ? "Strong pattern"
+                    : surfaceReading.band === "moderate"
+                      ? "Some pattern"
+                      : "Weak pattern"}
+                </Badge>
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted">{surfaceReading.sentence}</p>
+              <p className="mt-1.5 text-xs leading-relaxed text-subtle">
+                This runs on your device, is never sent anywhere, and never changes what you
+                report — it is a hint, not a decision. Please still pick the problem and
+                severity yourself, based on what you actually saw.
+              </p>
+            </div>
+          )}
+        </div>
 
         {status.kind === "error" && <Notice tone="error">{status.message}</Notice>}
         {status.kind === "done" && <Notice tone="success">{status.message}</Notice>}

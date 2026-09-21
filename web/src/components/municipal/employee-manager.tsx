@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -306,7 +307,13 @@ export function EmployeeManager({ employees }: { employees: EmployeeRow[] }) {
                   </p>
                 </div>
 
-                <div className="flex shrink-0 gap-2">
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Link
+                    href={`/municipal/employees/${employee.id}`}
+                    className="inline-flex h-9 items-center justify-center rounded-lg border border-border-strong bg-surface px-3 text-sm font-medium text-fg transition-colors hover:bg-surface-2"
+                  >
+                    View history
+                  </Link>
                   <Button variant="outline" size="sm" onClick={() => startEdit(employee)}>
                     Edit
                   </Button>

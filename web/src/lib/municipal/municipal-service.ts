@@ -161,6 +161,82 @@ export async function deactivateEmployee(
   return { ok: true };
 }
 
+/**
+ * One employee, their workload summary, and their full assignment and
+ * inspection history — the drill-down behind the workload table.
+ *
+ * WHY THIS IS SEPARATE FROM `loadEmployeePerformance`
+ * That function computes the summary FIGURES for every active employee in one
+ * pass, for the table. This loads the WORK ITEMS themselves, for one employee,
+ * including inactive ones — a deactivated employee's history is exactly what
+ * "deactivate, don't delete" (see `deactivateEmployee`) is for, and it would be
+ * a strange audit trail that only remained visible while somebody still held
+ * the job.
+ */
+export async function getEmployeeDetail(cityCode: string, employeeId: string) {
+  const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+  if (!employee || employee.cityCode !== cityCode) return null;
+
+  const [assigned, verified] = await Promise.all([
+    prisma.roadIssue.findMany({
+      where: { cityCode, assignedEmployeeId: employeeId },
+      orderBy: [{ assignedAt: "desc" }],
+      select: {
+        id: true,
+        issueType: true,
+        areaLabel: true,
+        status: true,
+        priorityScore: true,
+        assignedAt: true,
+        dueAt: true,
+        completedAt: true,
+      },
+    }),
+    prisma.roadIssue.findMany({
+      where: { cityCode, verifiedByEmployeeId: employeeId },
+      orderBy: [{ verifiedAt: "desc" }],
+      take: 50,
+      select: {
+        id: true,
+        issueType: true,
+        areaLabel: true,
+        status: true,
+        verifiedAt: true,
+      },
+    }),
+  ]);
+
+  const open = assigned.filter((issue) => ACTIVE_STATUSES.includes(issue.status));
+  const done = assigned.filter(
+    (issue) => issue.status === "COMPLETED" || issue.status === "CLOSED"
+  );
+
+  const durations = done
+    .filter((issue) => issue.assignedAt && issue.completedAt)
+    .map((issue) => (issue.completedAt!.getTime() - issue.assignedAt!.getTime()) / 3_600_000);
+
+  const lateCount = done.filter(
+    (issue) => issue.dueAt && issue.completedAt && issue.completedAt > issue.dueAt
+  ).length;
+
+  return {
+    employee,
+    assigned,
+    verified,
+    stats: {
+      totalAssigned: assigned.length,
+      open: open.length,
+      completed: done.length,
+      meanHours:
+        durations.length === 0
+          ? null
+          : Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10,
+      lateCount,
+      totalVerified: verified.length,
+    },
+  };
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Road issues as work                                                        */
 /* -------------------------------------------------------------------------- */
