@@ -3,9 +3,7 @@ import { NextResponse } from "next/server";
 import { appDateOnly } from "@/lib/app-time";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
-import { formatTime } from "@/lib/demand/time-slots";
 import { getOwnedJourney } from "@/lib/journeys/journey-service";
-import { awardPoints } from "@/lib/rewards/ledger";
 import { fieldErrorsFrom, recommendationDecisionSchema } from "@/lib/validation";
 
 /**
@@ -24,13 +22,6 @@ import { fieldErrorsFrom, recommendationDecisionSchema } from "@/lib/validation"
  *
  * Nothing is recorded unless the person actually presses a button. The system
  * never assumes a decision on their behalf.
- *
- * POINTS ARE CREDITED HERE, AND ONLY FOR ACCEPTING
- * Following a suggestion is the contribution the scheme is meant to recognise.
- * Keeping your usual time is a perfectly legitimate choice and is never
- * penalised — it simply earns nothing, because nothing was contributed. The
- * credit is idempotent (see lib/rewards/ledger.ts), so pressing Accept twice,
- * or in two tabs, pays once.
  */
 
 export const runtime = "nodejs";
@@ -108,36 +99,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // ------------------------------------------------------------- points
-    let pointsAwarded = 0;
-    let pointsMessage: string | null = null;
-
-    if (decision === "ACCEPTED" && existing.pointsOffered > 0) {
-      const award = await awardPoints({
-        userId: session.userId,
-        kind: "FOLLOWED_RECOMMENDATION",
-        points: existing.pointsOffered,
-        description: `Followed the ${formatTime(
-          existing.recommendedDeparture
-        )} departure suggested for your ${journey.label.toLowerCase()}`,
-        recommendationId: existing.id,
-      });
-
-      if (award.awarded) {
-        pointsAwarded = award.points;
-        pointsMessage = `${award.points} points added. Your balance is ${award.balance}.`;
-      } else {
-        // Already credited — a retry or a second tab. Not an error, and not
-        // something to alarm the person about.
-        pointsMessage = award.reason ?? null;
-      }
-    }
-
-    return NextResponse.json({
-      recommendation: updated,
-      pointsAwarded,
-      pointsMessage,
-    });
+    return NextResponse.json({ recommendation: updated });
   } catch (error) {
     console.error("[recommendation decision] failed:", error);
     return NextResponse.json(

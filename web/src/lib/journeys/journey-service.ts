@@ -270,9 +270,7 @@ export async function updateJourney(
  * Deletes a routine and everything derived from it.
  *
  * The recommendations and intentions cascade away with it, which is the right
- * behaviour: they describe a trip that no longer exists. The reward points
- * already earned from following them do NOT, because those were earned and are
- * recorded in the ledger, which never references a journey.
+ * behaviour: they describe a trip that no longer exists.
  */
 export async function deleteJourney(userId: string, journeyId: string): Promise<boolean> {
   const owned = await getOwnedJourney(userId, journeyId);

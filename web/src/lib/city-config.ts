@@ -8,8 +8,7 @@ import { prisma } from "@/lib/db";
  *
  * WHY THESE LIVE IN THE DATABASE
  * Every value here is a judgement call that belongs to a city, not to us. What
- * counts as a high-priority pothole in Bhopal is not what counts in Mumbai, and
- * a points value that motivates people in one city may not in another.
+ * counts as a high-priority pothole in Bhopal is not what counts in Mumbai.
  * Hard-coding them would mean a redeploy every time a council changed its mind
  * about its own policy.
  *
@@ -33,12 +32,6 @@ export interface CityConfigValues {
   confirmationReportCount: number;
   sensorImpactThreshold: number;
 
-  pointsForFollowingRecommendation: number;
-  pointsForCarpool: number;
-  pointsForModeSwitch: number;
-  pointsForCorroboratedRoadReport: number;
-  voucherValidityDays: number;
-
   defaultFlexibilityMinutes: number;
   peakDemandThreshold: number;
 }
@@ -48,12 +41,6 @@ export const DEFAULT_CITY_CONFIG: CityConfigValues = {
   highPriorityThreshold: 75,
   confirmationReportCount: 3,
   sensorImpactThreshold: 14.0,
-
-  pointsForFollowingRecommendation: 50,
-  pointsForCarpool: 80,
-  pointsForModeSwitch: 100,
-  pointsForCorroboratedRoadReport: 30,
-  voucherValidityDays: 90,
 
   defaultFlexibilityMinutes: 15,
   peakDemandThreshold: 62,
@@ -85,11 +72,6 @@ export async function getCityConfig(cityCode: CityCode): Promise<EffectiveCityCo
     highPriorityThreshold: stored.highPriorityThreshold,
     confirmationReportCount: stored.confirmationReportCount,
     sensorImpactThreshold: stored.sensorImpactThreshold,
-    pointsForFollowingRecommendation: stored.pointsForFollowingRecommendation,
-    pointsForCarpool: stored.pointsForCarpool,
-    pointsForModeSwitch: stored.pointsForModeSwitch,
-    pointsForCorroboratedRoadReport: stored.pointsForCorroboratedRoadReport,
-    voucherValidityDays: stored.voucherValidityDays,
     defaultFlexibilityMinutes: stored.defaultFlexibilityMinutes,
     peakDemandThreshold: stored.peakDemandThreshold,
   };
@@ -122,15 +104,6 @@ export const CITY_CONFIG_HELP: Record<keyof CityConfigValues, string> = {
     "How many independent reports are needed before an issue is described as confirmed by reports. This never means 'verified' — only an inspector can verify a defect.",
   sensorImpactThreshold:
     "Peak vertical acceleration, in m/s², above which a phone jolt is treated as a possible road defect. Lower catches more real potholes and more speed breakers.",
-
-  pointsForFollowingRecommendation:
-    "Points credited when someone departs at the time CityFlow AI suggested.",
-  pointsForCarpool: "Points credited for sharing a vehicle on a trip.",
-  pointsForModeSwitch:
-    "Points credited for switching from a private vehicle to public transport, cycling or walking.",
-  pointsForCorroboratedRoadReport:
-    "Points credited when someone's road report is later corroborated by other independent reports.",
-  voucherValidityDays: "How long a redeemed voucher stays valid before it expires.",
 
   defaultFlexibilityMinutes:
     "The flexibility window offered by default during onboarding. People can always change their own.",

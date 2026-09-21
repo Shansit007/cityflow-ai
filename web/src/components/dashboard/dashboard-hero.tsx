@@ -9,8 +9,7 @@ import type { WeatherToday } from "@/lib/weather";
  *
  * WHY THE NUMBERS HERE ARE THE ONES THEY ARE
  * A hero card is the most-read area of any product, so it is also the easiest
- * place to mislead. Three rules are followed:
- *  - Points are a real ledger balance, not a decorative figure.
+ * place to mislead. Two rules are followed:
  *  - Weather comes from Open-Meteo or is omitted entirely — never guessed.
  *  - Nothing here claims a traffic measurement. The demand tile lives further
  *    down beside its own explanation.
@@ -24,8 +23,6 @@ interface DashboardHeroProps {
   cityflowId: string;
   weather: WeatherToday | null;
   weatherNote: string | null;
-  pointsToday: number;
-  pointsBalance: number;
   journeyCount: number;
 }
 
@@ -59,14 +56,7 @@ export function DashboardHero(props: DashboardHeroProps) {
       </div>
 
       {/* ------------------------------------------------------------ tiles */}
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <Tile
-          caption="Points today"
-          value={props.pointsToday > 0 ? `+${props.pointsToday}` : "0"}
-          detail={`${props.pointsBalance} available to spend`}
-          href="/rewards"
-        />
-
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
         {props.weather ? (
           <Tile
             caption="Weather"

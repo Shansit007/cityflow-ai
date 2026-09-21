@@ -357,7 +357,7 @@ export const roadDetectionBatchSchema = z.object({
 export type RoadDetectionBatchInput = z.infer<typeof roadDetectionBatchSchema>;
 
 /* ==========================================================================
-   PHASE 6 — journeys, one-off trips, saved locations, rewards, municipal work
+   PHASE 6 — journeys, one-off trips, saved locations, municipal work
    ========================================================================== */
 
 /** A routine's display name. Optional — one is generated when it is blank. */
@@ -546,21 +546,12 @@ export const notificationSettingsSchema = z.object({
   notifyDailyRecommendation: z.boolean(),
   notifyTrafficAlerts: z.boolean(),
   notifyRoadDetections: z.boolean(),
-  notifyRewards: z.boolean(),
   /** 30, 90, 180 or 365 days. */
   locationHistoryRetentionDays: z.number().int().min(30).max(365),
 });
 
 export type AccountSettingsInput = z.infer<typeof accountSettingsSchema>;
 export type NotificationSettingsInput = z.infer<typeof notificationSettingsSchema>;
-
-/* -------------------------------------------------------------------------- */
-/*  Rewards                                                                    */
-/* -------------------------------------------------------------------------- */
-
-export const redeemSchema = z.object({
-  itemId: z.string().trim().min(1).max(40),
-});
 
 /* -------------------------------------------------------------------------- */
 /*  Authentication: verification and password reset                            */
@@ -664,12 +655,6 @@ export const cityConfigSchema = z.object({
   highPriorityThreshold: z.number().int().min(0).max(100),
   confirmationReportCount: z.number().int().min(1).max(20),
   sensorImpactThreshold: z.number().min(5).max(40),
-
-  pointsForFollowingRecommendation: z.number().int().min(0).max(1000),
-  pointsForCarpool: z.number().int().min(0).max(1000),
-  pointsForModeSwitch: z.number().int().min(0).max(1000),
-  pointsForCorroboratedRoadReport: z.number().int().min(0).max(1000),
-  voucherValidityDays: z.number().int().min(7).max(730),
 
   defaultFlexibilityMinutes: z.number().int().min(0).max(120),
   peakDemandThreshold: z.number().int().min(20).max(100),

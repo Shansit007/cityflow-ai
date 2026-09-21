@@ -3,8 +3,10 @@
 > Status: **Phases 1–6 complete.** Everything described below is implemented.
 >
 > Phase 6 added a Python ML service, multiple journeys per person, one-off trip
-> planning, a rewards ledger, the Municipal Dashboard as a third in-repository
-> portal, and per-city configuration. It also reversed two earlier decisions.
+> planning, the Municipal Dashboard as a third in-repository portal, and
+> per-city configuration. It also reversed two earlier decisions. A points and
+> rewards system was built in this phase and later removed — see
+> [10-PHASE-6.md](10-PHASE-6.md).
 > **See [10-PHASE-6.md](10-PHASE-6.md) for what changed and why** — this
 > document has been updated for the new portal layout but the Phase 6 document
 > is the authority on the reasoning.

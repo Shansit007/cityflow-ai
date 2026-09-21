@@ -58,8 +58,6 @@ interface RecommendationCardProps {
   savingIsMeaningful: boolean;
   /** One sentence naming exactly where the saving figure came from. */
   savingMethod: string;
-  /** Points credited if they accept. Zero when there is nothing to follow. */
-  pointsOffered: number;
 }
 
 export function RecommendationCard(props: RecommendationCardProps) {
@@ -72,7 +70,6 @@ export function RecommendationCard(props: RecommendationCardProps) {
   const [customTime, setCustomTime] = useState(props.usualDeparture);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pointsMessage, setPointsMessage] = useState<string | null>(null);
 
   async function record(decision: DecisionStatus, chosenDeparture?: string) {
     setSaving(true);
@@ -95,7 +92,6 @@ export function RecommendationCard(props: RecommendationCardProps) {
       setStatus(decision);
       setChosen(data.recommendation?.chosenDeparture ?? chosenDeparture ?? null);
       setChanging(false);
-      setPointsMessage(data.pointsMessage ?? null);
       router.refresh();
     } catch {
       setError("Could not reach the server. Please try again.");
@@ -153,36 +149,21 @@ export function RecommendationCard(props: RecommendationCardProps) {
         The estimate row. Shown only when the model can actually support a
         claim, and never without the word "Estimated" and the method beside it.
       */}
-      {props.suggestsChange && (props.savingIsMeaningful || props.pointsOffered > 0) && (
+      {props.suggestsChange && props.savingIsMeaningful && (
         <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-border-base bg-surface-2 px-4 py-3">
-          {props.savingIsMeaningful && (
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-subtle">
-                Estimated time saved
-              </p>
-              <p className="mt-0.5 text-lg font-semibold text-fg">
-                about {props.estimatedMinutesSaved} min
-              </p>
-            </div>
-          )}
-
-          {props.pointsOffered > 0 && (
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-subtle">
-                If you follow this
-              </p>
-              <p className="mt-0.5 text-lg font-semibold text-secondary">
-                +{props.pointsOffered} points
-              </p>
-            </div>
-          )}
-
-          {props.savingIsMeaningful && (
-            <p className="basis-full text-xs leading-relaxed text-subtle">
-              Estimated from predicted demand and the journey time you gave us — no real
-              journey was measured. {props.savingMethod}
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wider text-subtle">
+              Estimated time saved
             </p>
-          )}
+            <p className="mt-0.5 text-lg font-semibold text-fg">
+              about {props.estimatedMinutesSaved} min
+            </p>
+          </div>
+
+          <p className="basis-full text-xs leading-relaxed text-subtle">
+            Estimated from predicted demand and the journey time you gave us — no real
+            journey was measured. {props.savingMethod}
+          </p>
         </div>
       )}
 
@@ -203,12 +184,6 @@ export function RecommendationCard(props: RecommendationCardProps) {
       {error && (
         <div className="mt-4">
           <Notice tone="error">{error}</Notice>
-        </div>
-      )}
-
-      {pointsMessage && (
-        <div className="mt-4">
-          <Notice tone="success">{pointsMessage}</Notice>
         </div>
       )}
 

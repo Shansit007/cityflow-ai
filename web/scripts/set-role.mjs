@@ -11,7 +11,7 @@
  * the database, which is the only place that can prove it is the project team.
  *
  * THE THREE ROLES
- *   USER       Commuter portal. Their own journeys, recommendations and rewards.
+ *   USER       Commuter portal. Their own journeys and recommendations.
  *   ADMIN      Admin Portal. City-level demand, optimisation and reporting.
  *   MUNICIPAL  Municipal Dashboard. Road issues, workforce and repairs — and
  *              deliberately NO access to any commuter's data.

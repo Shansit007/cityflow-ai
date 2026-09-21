@@ -112,7 +112,6 @@ export default async function SettingsPage() {
                 notifyDailyRecommendation: profile.notifyDailyRecommendation,
                 notifyTrafficAlerts: profile.notifyTrafficAlerts,
                 notifyRoadDetections: profile.notifyRoadDetections,
-                notifyRewards: profile.notifyRewards,
                 locationHistoryRetentionDays: profile.locationHistoryRetentionDays,
               }}
             />

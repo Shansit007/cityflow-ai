@@ -102,8 +102,6 @@ export default async function DashboardPage({
           cityflowId={user.cityflowId}
           weather={today.weather}
           weatherNote={today.weatherNote}
-          pointsToday={today.pointsToday}
-          pointsBalance={today.pointsBalance}
           journeyCount={today.journeys.length}
         />
 
@@ -193,7 +191,7 @@ export default async function DashboardPage({
  * the demand strip that explains the suggestion.
  */
 function JourneyBlock({ entry, cityName }: { entry: JourneyToday; cityName: string }) {
-  const { journey, engine, recommendation, savings, pointsOffered } = entry;
+  const { journey, engine, recommendation, savings } = entry;
 
   return (
     <div>
@@ -233,7 +231,6 @@ function JourneyBlock({ entry, cityName }: { entry: JourneyToday; cityName: stri
         estimatedMinutesSaved={savings.minutes}
         savingIsMeaningful={savings.isMeaningful}
         savingMethod={savings.method}
-        pointsOffered={pointsOffered}
       />
 
       <div className="mt-4">

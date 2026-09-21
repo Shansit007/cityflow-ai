@@ -1,8 +1,8 @@
 # End-to-end demo walkthrough
 
 Follow this in order and every part of CityFlow AI gets exercised: the commuter
-platform, the rewards ledger, the Municipal Dashboard's repair workflow, and the
-Admin Portal's view of the whole thing.
+platform, the Municipal Dashboard's repair workflow, and the Admin Portal's
+view of the whole thing.
 
 It takes about ten minutes. Nothing here is scripted or faked — every number you
 see is produced by the code from the data you enter.
@@ -53,7 +53,6 @@ there will be something to recommend.
 - a suggested departure earlier or later than 09:00
 - the predicted demand at both times, as a 0–100 index
 - an estimated time saved, **with the method printed beside it**
-- points on offer if you follow it
 
 Press **"Why am I seeing this?"** and check the numbers add up.
 
@@ -64,13 +63,9 @@ system could not handle at all, and the evening peak is the larger of the two in
 every city we modelled.
 
 **5. Accept a recommendation.** Press **"Use 08:45"** (or whatever it offers).
-Watch the points land — the notice tells you your new balance.
+The card updates to show you are using the recommended time.
 
-**6. Check `/rewards`.** Your points are there, with a ledger entry naming the
-journey. Try redeeming something; note the honesty notice above the catalogue
-saying no partner is actually connected.
-
-**7. Plan a one-off trip.** Go to `/plan`. Set an arrival of **10:30**, trip type
+**6. Plan a one-off trip.** Go to `/plan`. Set an arrival of **10:30**, trip type
 **Flight**. Notice the 45-minute safety buffer, and that the reasoning explains
 it. Change the type to **Film** and re-run: the buffer drops to 10 minutes and
 the departure moves later. The planner will never offer a quieter slot that
@@ -152,9 +147,8 @@ text. That placement is deliberate: those numbers are exactly the kind that end
 up in a slide with the caveat stripped off.
 
 **19. Tune the city.** `/admin/config`. Move the **high-priority threshold** and
-save; go back to `/municipal/issues` and see which issues are now flagged.
-Change **points for following a recommendation** and check `/rewards` — the
-citizen-facing page reflects it immediately, with no redeploy.
+save; go back to `/municipal/issues` and see which issues are now flagged —
+saved changes take effect immediately, with no redeploy.
 
 **20. Check the services.** The same page reports whether the ML service is
 reachable and whether email is configured, and says plainly what happens when
@@ -175,7 +169,6 @@ worth noticing:
 | `/insights` | Says whether a new peak formed, rather than reporting a headline reduction and staying quiet about it. |
 | Road issues | "Possible" → "confirmed by reports" → and only an inspector can make it "verified". |
 | `/municipal` | Refuses invalid transitions with an explanation of what to do instead. |
-| Rewards | States above the catalogue that no partner is connected. |
 | `/settings` | Says the notification preferences are stored and respected but that no delivery channel is built yet. |
 | Forgot password | Returns the same message whether or not the address has an account. |
 | Empty states | Distinguish "you have not set this up" from "there is nothing to show" — those need different things said. |

@@ -30,7 +30,6 @@ const PROTECTED_PREFIXES = [
   "/participation",
   "/journeys",
   "/plan",
-  "/rewards",
   "/insights",
   "/settings",
 ];

@@ -53,7 +53,6 @@ export interface NotificationValues {
   notifyDailyRecommendation: boolean;
   notifyTrafficAlerts: boolean;
   notifyRoadDetections: boolean;
-  notifyRewards: boolean;
   locationHistoryRetentionDays: number;
 }
 
@@ -243,12 +242,6 @@ function NotificationForm({ initial }: { initial: NotificationValues }) {
               description="Off by default — a notification for every bump in the road would be intolerable."
               checked={values.notifyRoadDetections}
               onChange={(checked) => set("notifyRoadDetections", checked)}
-            />
-            <Toggle
-              label="Reward points"
-              description="When points are credited, and when a voucher is about to expire."
-              checked={values.notifyRewards}
-              onChange={(checked) => set("notifyRewards", checked)}
             />
           </div>
         )}

@@ -7,7 +7,6 @@ import type {
 
 import { appDateOnly, appLocalDate, appMinutesSinceMidnight } from "@/lib/app-time";
 import { getCity, type CityCode } from "@/lib/cities";
-import { getCityConfig } from "@/lib/city-config";
 import { prisma } from "@/lib/db";
 import {
   buildAdjustedCurve,
@@ -25,7 +24,6 @@ import {
 import { estimateSavings, type SavingsEstimate } from "@/lib/demand/savings";
 import { SLOT_MINUTES, toTimeString } from "@/lib/demand/time-slots";
 import { journeysForDate } from "@/lib/journeys/journey-service";
-import { pointsEarnedToday } from "@/lib/rewards/ledger";
 import { fetchWeather, weatherTravelNote, type WeatherToday } from "@/lib/weather";
 
 /**
@@ -38,8 +36,7 @@ import { fetchWeather, weatherTravelNote, type WeatherToday } from "@/lib/weathe
  * A person used to have one routine and therefore one recommendation a day.
  * They now have several, so this module returns a LIST. The engine itself did
  * not change — it is called once per routine — but everything around it did:
- * each journey gets its own stored recommendation, its own demand strip, and
- * its own points offer.
+ * each journey gets its own stored recommendation and its own demand strip.
  *
  * WHY EACH RECOMMENDATION IS STORED
  * Two reasons, both about honesty:
@@ -62,8 +59,6 @@ export interface JourneyToday {
   peakStrip: AdjustedDemandSlot[];
   /** The person's confirmed plan for this routine today, if they have made one. */
   intention: TravelIntention | null;
-  /** Points on offer if they follow this recommendation. */
-  pointsOffered: number;
 }
 
 export interface TodayView {
@@ -79,8 +74,6 @@ export interface TodayView {
   weather: WeatherToday | null;
   /** One sentence when weather is likely to affect travel, otherwise null. */
   weatherNote: string | null;
-  pointsToday: number;
-  pointsBalance: number;
 }
 
 /**
@@ -106,16 +99,10 @@ export async function loadTodayForUser(
   // These four are independent of each other, so they go out together rather
   // than in sequence. On a dashboard load that is the difference between one
   // round trip and four.
-  const [profile, allJourneysToday, config, weather] = await Promise.all([
+  const [profile, allJourneysToday, weather, journeyCount] = await Promise.all([
     prisma.travelProfile.findUnique({ where: { userId } }),
     journeysForDate(userId, localNow),
-    getCityConfig(city.code),
     fetchWeather(city),
-  ]);
-
-  const [pointsToday, rewards, journeyCount] = await Promise.all([
-    pointsEarnedToday(userId, startOfDayFrom(localNow)),
-    prisma.userRewards.findUnique({ where: { userId } }),
     prisma.journey.count({ where: { userId } }),
   ]);
 
@@ -125,8 +112,6 @@ export async function loadTodayForUser(
     cityCode: city.code,
     weather,
     weatherNote: weatherTravelNote(weather),
-    pointsToday,
-    pointsBalance: rewards?.pointsBalance ?? 0,
   };
 
   if (allJourneysToday.length === 0) {
@@ -148,7 +133,6 @@ export async function loadTodayForUser(
         context,
         cityCode: city.code,
         travelDate,
-        pointsOnOffer: config.pointsForFollowingRecommendation,
       })
     )
   );
@@ -163,9 +147,8 @@ async function buildJourneyToday(args: {
   context: DemandContext;
   cityCode: CityCode;
   travelDate: Date;
-  pointsOnOffer: number;
 }): Promise<JourneyToday> {
-  const { userId, journey, context, cityCode, travelDate, pointsOnOffer } = args;
+  const { userId, journey, context, cityCode, travelDate } = args;
 
   const engine = recommendDeparture({
     demandAt: demandAtFor(context),
@@ -184,11 +167,6 @@ async function buildJourneyToday(args: {
     engine.demandAtRecommended
   );
 
-  // Points are only on offer when there is actually something to follow. Paying
-  // someone for keeping the time they were always going to keep would make the
-  // whole scheme meaningless.
-  const pointsOffered = engine.suggestsChange ? pointsOnOffer : 0;
-
   const [recommendation, intention] = await Promise.all([
     persistRecommendation({
       userId,
@@ -197,7 +175,6 @@ async function buildJourneyToday(args: {
       travelDate,
       engine,
       savings,
-      pointsOffered,
     }),
     prisma.travelIntention.findUnique({
       where: { journeyId_travelDate: { journeyId: journey.id, travelDate } },
@@ -213,7 +190,6 @@ async function buildJourneyToday(args: {
     savings,
     peakStrip: buildAdjustedCurve(context, strip.from, strip.to),
     intention,
-    pointsOffered,
   };
 }
 
@@ -232,9 +208,8 @@ async function persistRecommendation(args: {
   travelDate: Date;
   engine: RecommendationResult;
   savings: SavingsEstimate;
-  pointsOffered: number;
 }): Promise<Recommendation> {
-  const { userId, journeyId, cityCode, travelDate, engine, savings, pointsOffered } = args;
+  const { userId, journeyId, cityCode, travelDate, engine, savings } = args;
 
   const key = { journeyId_travelDate: { journeyId, travelDate } };
 
@@ -261,7 +236,6 @@ async function persistRecommendation(args: {
     demandAtRecommended: engine.demandAtRecommended,
     reason: engine.reason,
     estimatedMinutesSaved: savings.minutes,
-    pointsOffered,
   };
 
   return prisma.recommendation.upsert({
@@ -272,8 +246,6 @@ async function persistRecommendation(args: {
       // The situation changed, so any earlier decision no longer applies.
       status: "PENDING",
       chosenDeparture: null,
-      // `pointsAwarded` is deliberately NOT reset. Points already credited stay
-      // credited — a routine change must never claw back something earned.
     },
   });
 }
@@ -299,13 +271,6 @@ function currentSlotFrom(context: DemandContext): AdjustedDemandSlot {
       overCapacity: false,
     }
   );
-}
-
-/** Midnight at the start of the app's local day. */
-function startOfDayFrom(localNow: Date): Date {
-  const start = new Date(localNow);
-  start.setHours(0, 0, 0, 0);
-  return start;
 }
 
 /* -------------------------------------------------------------------------- */

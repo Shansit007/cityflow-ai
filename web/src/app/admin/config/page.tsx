@@ -48,8 +48,8 @@ export default async function AdminConfigPage({
               Configuration
             </h1>
             <p className="mt-2 text-sm text-muted">
-              Thresholds and reward values for {city.name}. Saved changes take effect
-              immediately, with no redeploy.
+              Thresholds for {city.name}. Saved changes take effect immediately, with no
+              redeploy.
             </p>
           </div>
 

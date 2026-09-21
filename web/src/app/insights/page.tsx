@@ -145,11 +145,6 @@ export default async function InsightsPage() {
                       <p className="text-sm font-semibold text-fg">
                         {recommendation.journey?.label ?? "Your journey"}
                       </p>
-                      {recommendation.pointsOffered > 0 && (
-                        <Badge tone="secondary">
-                          +{recommendation.pointsOffered} points if followed
-                        </Badge>
-                      )}
                     </div>
 
                     <p className="mt-2 text-sm leading-relaxed text-fg">

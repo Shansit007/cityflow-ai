@@ -91,7 +91,7 @@ not be able to take the product down during a demonstration.
 | **3** | AI assistant, travel-intent recognition, confirmed plans, demand aggregation, city-wide re-optimisation | ✅ |
 | **4** | Admin Portal, demand heatmap, reports, SUMO + OpenStreetMap evaluation | ✅ |
 | **5** | Road-issue reporting, phone road-impact detection, participation, accessibility and security pass | ✅ |
-| **6** | Python ML service, multiple journeys, one-off trip planning, rewards ledger, Municipal Dashboard, weather, email verification and password reset, per-city configuration, Docker Compose, CI | ✅ |
+| **6** | Python ML service, multiple journeys, one-off trip planning, Municipal Dashboard, weather, email verification and password reset, per-city configuration, Docker Compose, CI | ✅ |
 
 ---
 

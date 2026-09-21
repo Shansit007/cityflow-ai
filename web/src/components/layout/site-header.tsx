@@ -41,15 +41,14 @@ const NAV_LINKS = [
  * Commuter links, shown once signed in.
  *
  * Order is deliberate and follows how often each is used: the dashboard every
- * day, journeys when something changes, a one-off trip occasionally, rewards
- * now and then. Roads and the assistant follow in the mobile menu.
+ * day, journeys when something changes, a one-off trip occasionally. Roads and
+ * the assistant follow in the mobile menu.
  */
 const SIGNED_IN_LINKS = [
   { href: "/dashboard", label: "My dashboard" },
   { href: "/journeys", label: "Journeys" },
   { href: "/plan", label: "Plan a trip" },
   { href: "/insights", label: "Insights" },
-  { href: "/rewards", label: "Rewards" },
   { href: "/roads", label: "Roads" },
 ];
 
