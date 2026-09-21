@@ -219,6 +219,12 @@ export async function getEmployeeDetail(cityCode: string, employeeId: string) {
     (issue) => issue.dueAt && issue.completedAt && issue.completedAt > issue.dueAt
   ).length;
 
+  // Same definition as the city-wide `overdue` figure in loadMetrics: past its
+  // due date and still not finished. A live risk signal, distinct from
+  // lateCount above (which only counts work that is ALREADY done, late).
+  const now = new Date();
+  const overdue = open.filter((issue) => issue.dueAt && issue.dueAt < now).length;
+
   return {
     employee,
     assigned,
@@ -232,6 +238,7 @@ export async function getEmployeeDetail(cityCode: string, employeeId: string) {
           ? null
           : Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10,
       lateCount,
+      overdue,
       totalVerified: verified.length,
     },
   };
@@ -565,6 +572,19 @@ export async function loadEmployeePerformance(cityCode: CityCode) {
       (issue) => issue.dueAt && issue.completedAt && issue.completedAt > issue.dueAt
     ).length;
 
+    // Same definition as the city-wide `overdue` figure in loadMetrics: past its
+    // due date and still not finished. A live risk signal, distinct from
+    // lateCount above (which only counts work that is ALREADY done, late).
+    const now = new Date();
+    const overdue = theirs.filter(
+      (issue) =>
+        issue.dueAt &&
+        issue.dueAt < now &&
+        issue.status !== "COMPLETED" &&
+        issue.status !== "CLOSED" &&
+        issue.status !== "REJECTED"
+    ).length;
+
     return {
       employee,
       assigned: theirs.length,
@@ -575,6 +595,7 @@ export async function loadEmployeePerformance(cityCode: CityCode) {
           ? null
           : Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10,
       lateCount,
+      overdue,
     };
   });
 }

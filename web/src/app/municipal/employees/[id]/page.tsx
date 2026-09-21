@@ -90,8 +90,14 @@ export default async function MunicipalEmployeeDetailPage({
         </div>
 
         {/* -------------------------------------------------------- workload */}
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatTile label="Open jobs" value={String(stats.open)} />
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatTile label="Open jobs" value={String(stats.open)} detail="Assigned, not yet finished" />
+          <StatTile
+            label="Overdue now"
+            value={String(stats.overdue)}
+            detail="Open and past its due date"
+            alert={stats.overdue > 0}
+          />
           <StatTile label="Completed" value={String(stats.completed)} />
           <StatTile
             label="Mean repair time"
@@ -99,9 +105,11 @@ export default async function MunicipalEmployeeDetailPage({
             detail="Assigned to completed"
           />
           <StatTile
-            label="Past due, completed late"
+            label="Completed late"
             value={stats.lateCount > 0 ? String(stats.lateCount) : "0"}
+            detail="Finished after its due date"
           />
+          <StatTile label="Inspections" value={String(stats.totalVerified)} detail="Verified by this employee" />
         </div>
 
         <p className="mt-3 text-xs leading-relaxed text-subtle">
@@ -217,11 +225,35 @@ export default async function MunicipalEmployeeDetailPage({
   );
 }
 
-function StatTile({ label, value, detail }: { label: string; value: string; detail?: string }) {
+function StatTile({
+  label,
+  value,
+  detail,
+  alert = false,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  alert?: boolean;
+}) {
   return (
-    <div className="rounded-card border border-border-base bg-surface p-4 shadow-card">
+    <div
+      className={
+        alert
+          ? "rounded-card border border-traffic-high bg-surface p-4 shadow-card"
+          : "rounded-card border border-border-base bg-surface p-4 shadow-card"
+      }
+    >
       <p className="text-xs font-medium uppercase tracking-wider text-subtle">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tracking-tight text-fg">{value}</p>
+      <p
+        className={
+          alert
+            ? "mt-1 text-2xl font-semibold tracking-tight text-traffic-high"
+            : "mt-1 text-2xl font-semibold tracking-tight text-fg"
+        }
+      >
+        {value}
+      </p>
       {detail && <p className="mt-0.5 text-xs text-muted">{detail}</p>}
     </div>
   );

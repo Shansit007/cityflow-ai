@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { EmployeeManager } from "@/components/municipal/employee-manager";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -68,27 +69,42 @@ export default async function MunicipalEmployeesPage() {
 
               {/* Tables need their own horizontal scroll on a phone. */}
               <div className="-mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0">
-                <table className="w-full min-w-[34rem] text-sm">
+                <table className="w-full min-w-[38rem] text-sm">
                   <thead>
                     <tr className="border-b border-border-base text-left">
                       <th className="pb-2 font-medium text-muted">Employee</th>
                       <th className="pb-2 text-right font-medium text-muted">Open</th>
+                      <th className="pb-2 text-right font-medium text-muted">Overdue</th>
                       <th className="pb-2 text-right font-medium text-muted">Completed</th>
                       <th className="pb-2 text-right font-medium text-muted">Mean time</th>
-                      <th className="pb-2 text-right font-medium text-muted">Past due</th>
+                      <th className="pb-2 text-right font-medium text-muted">Completed late</th>
                     </tr>
                   </thead>
                   <tbody>
                     {performance.map((row) => (
                       <tr key={row.employee.id} className="border-b border-border-base last:border-0">
                         <td className="py-2.5">
-                          <span className="font-medium text-fg">{row.employee.name}</span>
+                          <Link
+                            href={`/municipal/employees/${row.employee.id}`}
+                            className="font-medium text-fg underline-offset-2 hover:text-primary hover:underline"
+                          >
+                            {row.employee.name}
+                          </Link>
                           <span className="ml-2 text-xs text-subtle">
                             {row.employee.staffCode}
                           </span>
                         </td>
                         <td className="py-2.5 text-right font-semibold text-fg">
                           {row.open}
+                        </td>
+                        <td
+                          className={
+                            row.overdue > 0
+                              ? "py-2.5 text-right font-semibold text-traffic-high"
+                              : "py-2.5 text-right text-muted"
+                          }
+                        >
+                          {row.overdue > 0 ? row.overdue : "—"}
                         </td>
                         <td className="py-2.5 text-right text-fg">{row.completed}</td>
                         <td className="py-2.5 text-right text-muted">
@@ -107,7 +123,10 @@ export default async function MunicipalEmployeesPage() {
                 These figures describe the work, not the people. How long a repair takes
                 depends far more on the kind of defect and where it is than on who was
                 assigned it, so this is a workload picture — useful for spotting an
-                unbalanced queue — and not a ranking.
+                unbalanced queue before assigning the next job — and not a ranking.
+                &ldquo;Overdue&rdquo; is open work already past its due date;
+                &ldquo;Completed late&rdquo; is finished work that missed its due date. Select
+                a name for that employee&apos;s full history.
               </p>
             </Card>
           </div>
