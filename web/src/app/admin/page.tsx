@@ -18,6 +18,7 @@ import {
   loadSystemHealth,
 } from "@/lib/admin/analytics";
 import { loadTodayShiftSummary } from "@/lib/admin/demand-shift";
+import { loadUserAnalytics } from "@/lib/admin/user-analytics";
 import { ImpactPanel } from "@/components/admin/impact-panel";
 import { appDateOnly, formatAppDate } from "@/lib/app-time";
 import { getCity } from "@/lib/cities";
@@ -44,11 +45,12 @@ export default async function AdminOverviewPage({
   const params = await searchParams;
   const city = getCity(params.city);
 
-  const [overview, health, impact, liveBehavior] = await Promise.all([
+  const [overview, health, impact, liveBehavior, userAnalytics] = await Promise.all([
     loadCityOverview(city.code),
     loadSystemHealth(city.code),
     loadModelledImpact(city.code, appDateOnly()),
     loadTodayShiftSummary(city.code),
+    loadUserAnalytics(city.code),
   ]);
 
   const participationRate =
@@ -225,11 +227,27 @@ export default async function AdminOverviewPage({
         </div>
 
         {/* ------------------------------------------------- participation */}
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <StatTile
             label="Registered commuters"
             value={String(overview.participation.totalUsers)}
             detail={`in ${overview.cityName}`}
+          />
+          <StatTile
+            label="Active (counted in city figures)"
+            value={String(overview.participation.sharingDemand)}
+            detail="People who left city-level counting switched on"
+          />
+          <StatTile
+            label="New this week"
+            value={String(userAnalytics.newThisWeek)}
+            detail={
+              userAnalytics.newPreviousWeek === 0
+                ? "No prior week to compare yet"
+                : userAnalytics.newThisWeek === userAnalytics.newPreviousWeek
+                  ? `Same as last week (${userAnalytics.newPreviousWeek})`
+                  : `${userAnalytics.newThisWeek > userAnalytics.newPreviousWeek ? "Up" : "Down"} from ${userAnalytics.newPreviousWeek} last week`
+            }
           />
           <StatTile
             label="Completed a routine"
@@ -239,11 +257,6 @@ export default async function AdminOverviewPage({
                 ? "No registered commuters yet"
                 : `${participationRate}% of registered commuters`
             }
-          />
-          <StatTile
-            label="Counted in city figures"
-            value={String(overview.participation.sharingDemand)}
-            detail="People who left city-level counting switched on"
           />
           <StatTile
             label="Recommendations today"
