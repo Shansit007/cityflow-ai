@@ -61,6 +61,46 @@ const ADMIN_PREFIXES = ["/admin"];
  */
 const MUNICIPAL_PREFIXES = ["/municipal"];
 
+/**
+ * Three dedicated Vercel deployments (commuter / municipal / admin) run this
+ * exact same app from the same database, each restricted at the edge to its
+ * own audience's routes — one URL per audience, without maintaining three
+ * separate codebases. Set by CITYFLOW_PORTAL in that deployment's Vercel
+ * Environment Variables; a single combined deployment (and local dev, and
+ * Docker Compose) simply never sets it, so this is a no-op there and the app
+ * behaves exactly as it always has.
+ */
+type PortalMode = "commuter" | "admin" | "municipal";
+
+function getPortalMode(): PortalMode | null {
+  const raw = process.env.CITYFLOW_PORTAL;
+  if (raw === "commuter" || raw === "admin" || raw === "municipal") {
+    return raw;
+  }
+  return null;
+}
+
+/** The one prefix each dedicated (non-commuter) portal deployment owns. */
+const DEDICATED_PORTAL_PREFIX: Record<"admin" | "municipal", string> = {
+  admin: "/admin",
+  municipal: "/municipal",
+};
+
+/** Where a visitor who is in the wrong place on a dedicated deployment belongs. */
+const PORTAL_HOME: Record<PortalMode, string> = {
+  commuter: "/dashboard",
+  admin: "/admin",
+  municipal: "/municipal",
+};
+
+/** Every dedicated deployment still needs to be able to sign in and recover an account. */
+const SHARED_AUTH_PREFIXES = [
+  "/login",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
+];
+
 function startsWithAny(pathname: string, prefixes: string[]): boolean {
   return prefixes.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
@@ -73,6 +113,28 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = await verifySessionToken(token);
   const isSignedIn = session !== null;
+
+  // 0. Dedicated single-portal deployment: anything outside this
+  //    deployment's own audience does not exist here. This runs before every
+  //    other rule and is a no-op (portalMode === null) on the combined
+  //    deployment, local dev, and Docker Compose.
+  const portalMode = getPortalMode();
+  if (portalMode) {
+    const isSharedAuthPath = startsWithAny(pathname, SHARED_AUTH_PREFIXES);
+    const belongsToThisDeployment =
+      portalMode === "commuter"
+        ? !startsWithAny(pathname, ["/admin", "/municipal"])
+        : startsWithAny(pathname, [DEDICATED_PORTAL_PREFIX[portalMode]]);
+
+    if (!belongsToThisDeployment && !isSharedAuthPath) {
+      if (!isSignedIn) {
+        const loginUrl = new URL("/login", request.url);
+        loginUrl.searchParams.set("next", PORTAL_HOME[portalMode]);
+        return NextResponse.redirect(loginUrl);
+      }
+      return NextResponse.redirect(new URL(PORTAL_HOME[portalMode], request.url));
+    }
+  }
 
   // 1. Not signed in, opening a protected page -> go to login, remembering
   //    where they were trying to get to.
