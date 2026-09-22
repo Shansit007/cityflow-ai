@@ -8,8 +8,6 @@ import { AdminHeader } from "@/components/admin/admin-header";
 import { MunicipalHeader } from "@/components/municipal/municipal-header";
 import type { SessionRole } from "@/lib/auth/jwt";
 import { Logo } from "@/components/brand/logo";
-import { SaarthiMark } from "@/components/brand/saarthi-mark";
-import { ASSISTANT_NAME } from "@/lib/chat/branding";
 import { CitySelector } from "@/components/city/city-selector";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -40,16 +38,17 @@ const NAV_LINKS = [
 /**
  * Commuter links, shown once signed in.
  *
- * Order is deliberate and follows how often each is used: the dashboard every
- * day, journeys when something changes, a one-off trip occasionally. Roads and
- * the assistant follow in the mobile menu.
+ * Kept deliberately short — five items, the ones used often enough to earn a
+ * permanent place. Everything else (planning a one-off trip, insights,
+ * participation, the assistant) is reachable from inside these pages instead
+ * of competing for space in the header on every screen.
  */
 const SIGNED_IN_LINKS = [
-  { href: "/dashboard", label: "My dashboard" },
-  { href: "/journeys", label: "Journeys" },
-  { href: "/plan", label: "Plan a trip" },
-  { href: "/insights", label: "Insights" },
-  { href: "/roads", label: "Roads" },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/journeys", label: "My history" },
+  { href: "/roads", label: "Road health" },
+  { href: "/profile", label: "My profile" },
+  { href: "/how-it-works", label: "About CityFlow AI" },
 ];
 
 export function SiteHeader({ session }: { session: HeaderSession | null }) {
@@ -98,26 +97,32 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
             <Logo />
 
             <nav aria-label="Main" className="hidden items-center gap-1 lg:flex">
-              {NAV_LINKS.map((link) => {
-                const isActive =
-                  link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
+              {/*
+                Signed-out visitors see the marketing nav; a signed-in person
+                sees only their five commuter links below — showing both at
+                once would mean "How it works" appearing twice.
+              */}
+              {!session &&
+                NAV_LINKS.map((link) => {
+                  const isActive =
+                    link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
 
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    aria-current={isActive ? "page" : undefined}
-                    className={cn(
-                      "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-primary-soft text-primary"
-                        : "text-muted hover:bg-surface-2 hover:text-fg"
-                    )}
-                  >
-                    {link.label}
-                  </Link>
-                );
-              })}
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      aria-current={isActive ? "page" : undefined}
+                      className={cn(
+                        "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-primary-soft text-primary"
+                          : "text-muted hover:bg-surface-2 hover:text-fg"
+                      )}
+                    >
+                      {link.label}
+                    </Link>
+                  );
+                })}
 
               {/*
                 The signed-in links are data-driven rather than six near-identical
@@ -176,21 +181,11 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
                 </Link>
               )}
 
-              {session && (
-                <Link
-                  href="/assistant"
-                  aria-current={pathname.startsWith("/assistant") ? "page" : undefined}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    pathname.startsWith("/assistant")
-                      ? "bg-primary-soft text-primary"
-                      : "text-muted hover:bg-surface-2 hover:text-fg"
-                  )}
-                >
-                  <SaarthiMark className="h-4 w-4" />
-                  {ASSISTANT_NAME}
-                </Link>
-              )}
+              {/*
+                Saarthi is reachable from the floating launcher on every
+                signed-in page (see layout.tsx), so it does not also need a
+                permanent header slot.
+              */}
             </nav>
           </div>
 
@@ -268,19 +263,25 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
                 <CitySelector variant="full" className="w-full" />
               </div>
 
-              {NAV_LINKS.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {!session &&
+                NAV_LINKS.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
 
               {session ? (
                 <>
+                  {/*
+                    Five links, same set and order as the desktop nav.
+                    Settings lives inside "My profile" now rather than taking
+                    its own row, and Saarthi is the floating launcher.
+                  */}
                   {SIGNED_IN_LINKS.map((link) => (
                     <Link
                       key={link.href}
@@ -291,35 +292,6 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
                       {link.label}
                     </Link>
                   ))}
-                  <Link
-                    href="/assistant"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
-                  >
-                    <SaarthiMark className="h-4 w-4 text-primary" />
-                    {ASSISTANT_NAME} · your travel guide
-                  </Link>
-                  <Link
-                    href="/participation"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
-                  >
-                    My participation
-                  </Link>
-                  <Link
-                    href="/profile"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
-                  >
-                    My profile
-                  </Link>
-                  <Link
-                    href="/settings"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-fg hover:bg-surface-2"
-                  >
-                    Settings
-                  </Link>
                   {session.role === "ADMIN" && (
                     <Link
                       href="/admin"

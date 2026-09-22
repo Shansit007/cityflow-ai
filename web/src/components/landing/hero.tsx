@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
+
 import { CityBackdrop } from "@/components/city/city-backdrop";
 import { CitySelector } from "@/components/city/city-selector";
 import { useCity } from "@/components/city/city-provider";
-import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
 
 /**
@@ -47,13 +48,33 @@ export function Hero() {
               congestion builds up.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <ButtonLink href="/signup" size="lg">
-                Get Started
-              </ButtonLink>
-              <ButtonLink href="/how-it-works" variant="outline" size="lg">
-                How CityFlow AI Works
-              </ButtonLink>
+            {/*
+              Two clear cards rather than a "Get Started" / "How it works"
+              button pair: a first-time visitor and a returning one need two
+              different things, and each should be one obvious tap away
+              instead of both competing for the same button.
+            */}
+            <div className="mt-8 grid max-w-md grid-cols-1 gap-3 sm:grid-cols-2">
+              <Link
+                href="/signup"
+                className="group rounded-xl border-2 border-primary bg-primary-soft p-4 transition-colors hover:bg-primary/15"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                  New here?
+                </p>
+                <p className="mt-1 text-lg font-semibold text-fg">Sign up</p>
+                <p className="mt-0.5 text-xs text-muted">Create your free account</p>
+              </Link>
+              <Link
+                href="/login"
+                className="group rounded-xl border border-border-base bg-surface p-4 transition-colors hover:bg-surface-2"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-secondary">
+                  Been here before?
+                </p>
+                <p className="mt-1 text-lg font-semibold text-fg">Log in</p>
+                <p className="mt-0.5 text-xs text-muted">Go straight to your dashboard</p>
+              </Link>
             </div>
 
             {/* City choice, right where a first-time visitor will look for it. */}

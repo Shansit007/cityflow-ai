@@ -55,6 +55,16 @@ export function RoadIntelligence() {
                   Inspection and repair are handled by the existing municipal system, not by
                   CityFlow AI.
                 </li>
+                <li>
+                  Phone-sensor detections count as{" "}
+                  <span className="font-medium text-fg">half the evidence</span> of a report a
+                  person filled in themselves — a jolt cannot tell a pothole from a speed
+                  breaker, a kerb or a railway crossing.
+                </li>
+                <li>
+                  Location is used only while sensing is switched on, and only the places
+                  where a jolt happened are sent — never a full track of the journey.
+                </li>
               </ul>
             </div>
           </div>

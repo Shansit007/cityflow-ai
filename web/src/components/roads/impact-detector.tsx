@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import Link from "next/link";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Notice } from "@/components/ui/input";
@@ -264,30 +266,9 @@ export function RoadImpactDetector({ areaLabel }: { areaLabel: string }) {
   return (
     <Card>
       <CardHeader
-        title="Road sensing while you travel"
-        description="Uses your phone's motion sensors to notice sharp jolts, so a rough stretch of road can be found without anybody having to stop and report it."
+        title="Start journey"
+        description="Notices road jolts automatically while you travel."
       />
-
-      <div className="rounded-lg border border-border-base bg-surface-2 p-4">
-        <p className="text-sm font-medium text-fg">What this can and cannot tell</p>
-        <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-muted">
-          <li>
-            A jolt is a <span className="font-medium text-fg">hint</span>. A speed breaker, a
-            kerb and a pothole feel the same to a phone.
-          </li>
-          <li>
-            Everything recorded is filed as a{" "}
-            <span className="font-medium text-fg">possible</span> road issue and counts as half
-            the evidence of a report a person filled in themselves.
-          </li>
-          <li>
-            Nothing is recorded unless your phone knows where it is and can tell it is moving.
-          </li>
-          <li>
-            Keep this page open and the screen on — browsers pause sensors in a background tab.
-          </li>
-        </ul>
-      </div>
 
       {tripActive && (
         <div
@@ -327,10 +308,11 @@ export function RoadImpactDetector({ areaLabel }: { areaLabel: string }) {
         )}
       </div>
 
-      <p className="mt-4 text-xs leading-relaxed text-subtle">
-        Your location is used only while sensing is running, and only the places where a jolt
-        happened are sent — never a track of your journey. You can stop at any time, and
-        &ldquo;Stop and discard&rdquo; sends nothing at all.
+      <p className="mt-4 text-xs text-subtle">
+        Location used only while running ·{" "}
+        <Link href="/how-it-works#road-conditions" className="underline underline-offset-2">
+          how this works
+        </Link>
       </p>
     </Card>
   );

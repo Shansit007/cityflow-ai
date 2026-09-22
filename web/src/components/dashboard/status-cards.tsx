@@ -113,13 +113,10 @@ export function RoadConditionsCard({
       {top.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border-strong bg-surface-2 p-5 text-center">
           <p className="text-sm font-medium text-fg">No road reports for {area} yet</p>
-          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">
-            Nobody using CityFlow AI has reported a problem here. That is not the same as the
-            roads being fine — if you know of one,{" "}
+          <p className="mt-1 text-xs text-subtle">
             <Link href="/roads" className="font-medium text-primary underline underline-offset-2">
-              report it in about thirty seconds
+              Report one
             </Link>
-            .
           </p>
         </div>
       ) : (

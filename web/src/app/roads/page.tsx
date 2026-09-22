@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { CITY_COOKIE_NAME } from "@/components/city/city-provider";
 import { RoadImpactDetector } from "@/components/roads/impact-detector";
 import { RoadIssueList } from "@/components/roads/issue-list";
 import { RoadReportForm } from "@/components/roads/report-form";
-import { Card, CardHeader } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getCity } from "@/lib/cities";
@@ -85,56 +85,18 @@ export default async function RoadsPage() {
           <div className="space-y-6 lg:col-span-2">
             <RoadImpactDetector areaLabel={profile.homeArea} />
 
-            <Card>
-              <CardHeader title="Who does what" />
-              <ol className="space-y-4 text-sm leading-relaxed text-muted">
-                <HandoffStep
-                  step="1"
-                  title="You report, or your phone notices"
-                  body="A report from a person carries more weight than a jolt a sensor felt, because a person has actually looked at it."
-                />
-                <HandoffStep
-                  step="2"
-                  title="CityFlow AI merges and weighs"
-                  body="Reports about the same spot are combined. More independent reports mean higher confidence — one report is only ever a possibility."
-                />
-                <HandoffStep
-                  step="3"
-                  title="CityFlow AI prioritises"
-                  body="Issues are ranked by evidence, reported severity, and how many trips pass through that area — the one thing a traffic system knows that a complaints inbox does not."
-                />
-                <HandoffStep
-                  step="4"
-                  title="The municipal team inspects and repairs"
-                  body="The prioritised list is handed to the municipal road-maintenance system. Inspection, repair and progress tracking all happen there, not here."
-                />
-              </ol>
-
-              <p className="mt-5 border-t border-border-base pt-4 text-xs leading-relaxed text-subtle">
-                CityFlow AI cannot tell you when something will be fixed, because it is not
-                told. Saying otherwise would be a guess dressed up as a commitment.
-              </p>
-            </Card>
+            <p className="text-center text-xs text-subtle">
+              What happens after you report ·{" "}
+              <Link
+                href="/how-it-works#road-conditions"
+                className="underline underline-offset-2"
+              >
+                how this works
+              </Link>
+            </p>
           </div>
         </div>
       </Container>
     </section>
-  );
-}
-
-function HandoffStep({ step, title, body }: { step: string; title: string; body: string }) {
-  return (
-    <li className="flex gap-3">
-      <span
-        aria-hidden="true"
-        className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary"
-      >
-        {step}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-sm font-medium text-fg">{title}</span>
-        <span className="mt-0.5 block text-xs leading-relaxed text-muted">{body}</span>
-      </span>
-    </li>
   );
 }

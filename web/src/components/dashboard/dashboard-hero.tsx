@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import type { DemandSlot } from "@/lib/demand/demand-model";
+import { demandTextClass } from "@/lib/demand/ui";
 import type { WeatherToday } from "@/lib/weather";
 
 /**
@@ -24,6 +26,8 @@ interface DashboardHeroProps {
   weather: WeatherToday | null;
   weatherNote: string | null;
   journeyCount: number;
+  /** Predicted demand right now, shown as a compact tile beside the weather. */
+  trafficNow: DemandSlot;
 }
 
 export function DashboardHero(props: DashboardHeroProps) {
@@ -56,7 +60,14 @@ export function DashboardHero(props: DashboardHeroProps) {
       </div>
 
       {/* ------------------------------------------------------------ tiles */}
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <Tile
+          caption="Traffic now"
+          value={props.trafficNow.label}
+          detail={`Index ${props.trafficNow.index}/100`}
+          valueClassName={demandTextClass(props.trafficNow.level)}
+        />
+
         {props.weather ? (
           <Tile
             caption="Weather"
@@ -99,16 +110,22 @@ function Tile({
   value,
   detail,
   href,
+  valueClassName,
 }: {
   caption: string;
   value: string;
   detail: string;
   href?: string;
+  valueClassName?: string;
 }) {
   const inner = (
     <>
       <p className="text-xs font-medium uppercase tracking-wider text-subtle">{caption}</p>
-      <p className="mt-1 text-2xl font-semibold tracking-tight text-fg">{value}</p>
+      <p
+        className={`mt-1 text-2xl font-semibold tracking-tight ${valueClassName ?? "text-fg"}`}
+      >
+        {value}
+      </p>
       <p className="mt-0.5 text-xs text-muted">{detail}</p>
     </>
   );

@@ -24,12 +24,12 @@ export function ClosingCta() {
               Create your account
             </ButtonLink>
             <ButtonLink
-              href="/how-it-works"
+              href="/login"
               variant="ghost"
               size="lg"
               className="text-white hover:bg-white/10"
             >
-              Read how it works
+              Log in instead
             </ButtonLink>
           </div>
         </div>

@@ -59,6 +59,8 @@ interface RecommendationCardProps {
   savingIsMeaningful: boolean;
   /** One sentence naming exactly where the saving figure came from. */
   savingMethod: string;
+  /** Modelled journey length at the recommended departure, in minutes. */
+  journeyAtRecommended: number;
 }
 
 export function RecommendationCard(props: RecommendationCardProps) {
@@ -148,21 +150,31 @@ export function RecommendationCard(props: RecommendationCardProps) {
 
       {/*
         The estimate row. Shown only when the model can actually support a
-        claim, and never without the word "Estimated" and the method beside it.
+        claim. Two square boxes, same numbers as before — journey length at
+        the recommended time, and the extra time the usual time costs in
+        traffic — just without a paragraph to read to get them.
       */}
       {props.suggestsChange && props.savingIsMeaningful && (
-        <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-border-base bg-surface-2 px-4 py-3">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-subtle">
-              Estimated time saved
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-lg border border-primary bg-primary-soft p-4 text-center">
+            <p className="text-xs font-medium uppercase tracking-wider text-primary">
+              Leave {formatTime(props.recommendedDeparture)}
             </p>
-            <p className="mt-0.5 text-lg font-semibold text-fg">
-              about {props.estimatedMinutesSaved} min
+            <p className="mt-1 text-2xl font-semibold tracking-tight text-fg">
+              ~{props.journeyAtRecommended} min
             </p>
+            <p className="mt-0.5 text-xs text-muted">journey</p>
           </div>
-
-          <p className="basis-full text-xs text-subtle">
-            {props.savingMethod}{" "}
+          <div className="rounded-lg border border-border-base bg-surface-2 p-4 text-center">
+            <p className="text-xs font-medium uppercase tracking-wider text-subtle">
+              Leave {formatTime(props.usualDeparture)}
+            </p>
+            <p className="mt-1 text-2xl font-semibold tracking-tight text-traffic-high">
+              +{props.estimatedMinutesSaved} min
+            </p>
+            <p className="mt-0.5 text-xs text-muted">extra, stuck in traffic</p>
+          </div>
+          <p className="col-span-2 text-center text-xs text-subtle">
             <Link href="/how-it-works#how-numbers-work" className="underline underline-offset-2">
               How this is estimated
             </Link>
@@ -170,13 +182,16 @@ export function RecommendationCard(props: RecommendationCardProps) {
         </div>
       )}
 
-      {/* ------------------------------------------------------- the reason */}
-      <div className="mt-5 space-y-3">
-        <p className="rounded-lg bg-surface-2 p-4 text-sm leading-relaxed text-fg">
-          {props.reason}
-        </p>
-        <p className="text-sm leading-relaxed text-muted">{props.benefit}</p>
-      </div>
+      {/*
+        The full reason and benefit sentences still exist for anyone using a
+        screen reader — the two time boxes above already say it visually (leave
+        {recommended} = {level}, leave {usual} = {level}), so a sighted reader
+        does not also need it spelled out in a paragraph.
+      */}
+      <p className="sr-only-cf">
+        {props.reason} {props.benefit}
+        {props.suggestsChange && props.savingIsMeaningful ? ` ${props.savingMethod}` : ""}
+      </p>
 
       {props.warning && (
         <div className="mt-4">

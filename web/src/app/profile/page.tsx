@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { CityflowIdCard } from "@/components/auth/cityflow-id-card";
 import { ProfileCompleteness } from "@/components/profile/completeness";
 import { ProfileForm } from "@/components/profile/profile-form";
+import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
@@ -60,12 +61,20 @@ export default async function ProfilePage() {
   return (
     <section className="py-8 sm:py-12">
       <Container width="default">
-        <h1 className="text-2xl font-semibold tracking-tight text-fg sm:text-3xl">
-          My profile
-        </h1>
-        <p className="mt-2 text-sm text-muted">
-          Everything CityFlow AI knows about your travel routine. Change any of it, any time.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-fg sm:text-3xl">
+              My profile
+            </h1>
+            <p className="mt-2 text-sm text-muted">
+              Everything CityFlow AI knows about your travel routine. Change any of it,
+              any time.
+            </p>
+          </div>
+          <ButtonLink href="/settings" variant="outline" size="sm">
+            Account settings
+          </ButtonLink>
+        </div>
 
         <div className="mt-6">
           <CityflowIdCard cityflowId={user.cityflowId} />

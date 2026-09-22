@@ -144,8 +144,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 2. Already signed in, opening login/signup -> send them to the dashboard.
-  if (isSignedIn && startsWithAny(pathname, AUTH_ONLY_PREFIXES)) {
+  // 2. Already signed in, opening login/signup, or the marketing home page ->
+  //    send them straight to the dashboard. Once someone has an account, the
+  //    "get started" landing page has nothing left to offer them, and this
+  //    also means they never wait on it loading again.
+  if (
+    isSignedIn &&
+    (pathname === "/" || startsWithAny(pathname, AUTH_ONLY_PREFIXES))
+  ) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

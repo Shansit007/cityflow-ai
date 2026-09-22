@@ -15,6 +15,7 @@ import {
   TravelOptionsCard,
 } from "@/components/dashboard/status-cards";
 import { MapPanel } from "@/components/map/map-panel";
+import { RoadImpactDetector } from "@/components/roads/impact-detector";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
@@ -68,24 +69,28 @@ export default async function DashboardPage({
   const cityCode = cookieStore.get(CITY_COOKIE_NAME)?.value ?? user.cityCode;
   const city = getCity(cityCode);
 
-  const today = await loadTodayForUser(user.id, city.code);
+  // `history` does not depend on anything `loadTodayForUser` computes, so the
+  // two run together instead of one waiting on the other — the page answers
+  // "when should I leave" as soon as that query returns, not after both do.
+  const [today, history] = await Promise.all([
+    loadTodayForUser(user.id, city.code),
+    loadRecommendationHistory(user.id),
+  ]);
 
   // No preferences record at all means onboarding was never finished.
   if (!today.profile) redirect("/onboarding");
 
   // Road issues on the areas this person actually travels between. Uses the
-  // first routine's areas, which is the one they travel most often.
+  // first routine's areas, which is the one they travel most often. This one
+  // genuinely needs `today.profile`, so it cannot join the Promise.all above.
   const primary = today.journeys[0] ?? null;
 
-  const [history, roadIssues] = await Promise.all([
-    loadRecommendationHistory(user.id),
-    loadIssuesForUser({
-      userId: user.id,
-      cityCode: city.code,
-      homeArea: primary?.journey.originArea ?? today.profile.homeArea,
-      destinationArea: primary?.journey.destinationArea ?? today.profile.destinationArea,
-    }),
-  ]);
+  const roadIssues = await loadIssuesForUser({
+    userId: user.id,
+    cityCode: city.code,
+    homeArea: primary?.journey.originArea ?? today.profile.homeArea,
+    destinationArea: primary?.journey.destinationArea ?? today.profile.destinationArea,
+  });
 
   const greeting = greetingForHour(appHour());
   const name = user.displayName ?? "there";
@@ -102,6 +107,7 @@ export default async function DashboardPage({
           weather={today.weather}
           weatherNote={today.weatherNote}
           journeyCount={today.journeys.length}
+          trafficNow={today.now}
         />
 
         {params.welcome === "1" && (
@@ -124,6 +130,13 @@ export default async function DashboardPage({
             ))}
           </div>
         )}
+
+        {/* ------------------------------------- start a journey, right here */}
+        <div className="mt-6">
+          <RoadImpactDetector
+            areaLabel={primary?.journey.originArea ?? today.profile.homeArea}
+          />
+        </div>
 
         {/* --------------------------------------------- city-wide context */}
         <div className="mt-6 grid gap-6 lg:grid-cols-3">
@@ -224,6 +237,7 @@ function JourneyBlock({ entry, cityName }: { entry: JourneyToday; cityName: stri
         estimatedMinutesSaved={savings.minutes}
         savingIsMeaningful={savings.isMeaningful}
         savingMethod={savings.method}
+        journeyAtRecommended={savings.journeyAtRecommended}
       />
 
       <div className="mt-4">
