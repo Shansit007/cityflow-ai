@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ESTIMATE_CAVEAT } from "@/lib/demand/savings";
@@ -92,10 +94,8 @@ export function ImpactDashboard({
           )}
         </div>
 
-        <p className="mt-3 text-xs leading-relaxed text-muted">
-          The city-wide figure is every commuter&apos;s contribution added together today, not
-          a number attributed to you personally — it is here so you can see the shift you are
-          part of.
+        <p className="mt-3 text-xs text-subtle">
+          City figure is everyone&apos;s contribution added together today, not yours alone.
         </p>
       </section>
 
@@ -131,10 +131,11 @@ export function ImpactDashboard({
         )}
       </section>
 
-      <p className="mt-5 border-t border-border-base pt-4 text-xs leading-relaxed text-subtle">
-        {ESTIMATE_CAVEAT} No real journey was timed, and no emissions were measured — the
-        figures above are arithmetic on a model, shown so a flexible commuter can see the
-        expected size of what they are doing, not a scientific measurement of it.
+      <p className="mt-5 border-t border-border-base pt-4 text-xs text-subtle">
+        {ESTIMATE_CAVEAT} ·{" "}
+        <Link href="/how-it-works#how-numbers-work" className="underline underline-offset-2">
+          how this works
+        </Link>
       </p>
     </Card>
   );

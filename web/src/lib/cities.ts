@@ -68,16 +68,6 @@ export const CITIES: City[] = [
     popular: true,
   },
   {
-    code: "mumbai",
-    name: "Mumbai",
-    state: "Maharashtra",
-    landmark: "the Marine Drive curve against the city skyline",
-    center: { lat: 19.076, lng: 72.8777 },
-    zoom: 11,
-    aliases: ["bombay", "mum", "navi mumbai"],
-    popular: true,
-  },
-  {
     code: "hyderabad",
     name: "Hyderabad",
     state: "Telangana",
@@ -87,47 +77,17 @@ export const CITIES: City[] = [
     aliases: ["hyd", "secunderabad", "cyberabad"],
     popular: true,
   },
-  {
-    code: "pune",
-    name: "Pune",
-    state: "Maharashtra",
-    landmark: "green hills behind a wide urban road",
-    center: { lat: 18.5204, lng: 73.8567 },
-    zoom: 11,
-    aliases: ["poona", "pimpri", "chinchwad"],
-    popular: true,
-  },
-  {
-    code: "bhopal",
-    name: "Bhopal",
-    state: "Madhya Pradesh",
-    landmark: "the Upper Lake with a green city edge",
-    center: { lat: 23.2599, lng: 77.4126 },
-    zoom: 11,
-    aliases: ["bhopaal", "city of lakes"],
-    popular: true,
-  },
-  {
-    code: "chennai",
-    name: "Chennai",
-    state: "Tamil Nadu",
-    landmark: "the Marina coastline and lighthouse",
-    center: { lat: 13.0827, lng: 80.2707 },
-    zoom: 11,
-    aliases: ["madras", "maa"],
-    popular: true,
-  },
-  {
-    code: "kolkata",
-    name: "Kolkata",
-    state: "West Bengal",
-    landmark: "the Howrah Bridge over the river",
-    center: { lat: 22.5726, lng: 88.3639 },
-    zoom: 11,
-    aliases: ["calcutta", "ccu", "howrah"],
-    popular: true,
-  },
 ];
+
+/*
+ * Mumbai, Pune, Bhopal, Chennai and Kolkata were trimmed from the selectable
+ * list (kept to Delhi, Bengaluru and Hyderabad "for now") to cut down on
+ * city-picker clutter. Their supporting per-city data (skyline art, demand
+ * model tuning, zone cells, geocode bounding boxes) was intentionally left in
+ * place rather than deleted -- it is simply unused while the city isn't in
+ * this array, and re-adding one of these cities later is just adding its
+ * entry back here.
+ */
 
 /** The city selected for a brand-new visitor who has not chosen one yet. */
 export const DEFAULT_CITY_CODE: CityCode = "delhi";

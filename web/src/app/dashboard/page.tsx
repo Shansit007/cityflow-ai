@@ -15,7 +15,6 @@ import {
   TravelOptionsCard,
 } from "@/components/dashboard/status-cards";
 import { MapPanel } from "@/components/map/map-panel";
-import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
@@ -168,19 +167,13 @@ export default async function DashboardPage({
         </div>
 
         {/* ------------------------------------------------- honesty footer */}
-        <div className="mt-8 rounded-card border border-border-base bg-surface-2 p-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <Badge tone="neutral">How to read this page</Badge>
-          </div>
-          <p className="mt-3 text-sm leading-relaxed text-muted">
-            Every demand figure here is a <span className="font-medium text-fg">prediction</span>{" "}
-            from CityFlow AI&apos;s demand model, not a live measurement of traffic. Journey,
-            arrival and time-saved estimates are arithmetic on that prediction and on the normal
-            journey time you entered — CityFlow AI has never timed one of your journeys.
-            Recommendations are suggestions: you always decide when to leave, and choosing your
-            usual time is never wrong.
-          </p>
-        </div>
+        <p className="mt-8 text-center text-xs text-subtle">
+          Figures here are predictions, not measurements, and every recommendation is a
+          suggestion you can ignore ·{" "}
+          <Link href="/how-it-works#how-numbers-work" className="underline underline-offset-2">
+            how this works
+          </Link>
+        </p>
       </Container>
     </section>
   );

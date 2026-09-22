@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { HowItWorks } from "@/components/landing/how-it-works";
+import { HowNumbersWork } from "@/components/landing/how-numbers-work";
 import { PrivacyAndExplainability } from "@/components/landing/privacy-explainability";
 import { RoadIntelligence } from "@/components/landing/road-intelligence";
 import { WhyCongestion } from "@/components/landing/why-congestion";
@@ -52,6 +53,7 @@ export default function HowItWorksPage() {
       <WhyCongestion />
       <HowItWorks />
       <RoadIntelligence />
+      <HowNumbersWork />
       <PrivacyAndExplainability />
     </>
   );

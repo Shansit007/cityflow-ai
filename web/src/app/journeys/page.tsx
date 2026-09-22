@@ -67,17 +67,6 @@ export default async function JourneysPage() {
           />
         </div>
 
-        <div className="mt-8 rounded-card border border-border-base bg-surface-2 p-5">
-          <h2 className="text-sm font-semibold text-fg">
-            Why more than one journey matters
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed text-muted">
-            Most people make at least two trips a day, and in every city we looked at the
-            evening peak is the larger of the two. A system that only knew about your
-            morning commute could never help with the journey home — which is usually the
-            one people find worse.
-          </p>
-        </div>
       </Container>
     </section>
   );

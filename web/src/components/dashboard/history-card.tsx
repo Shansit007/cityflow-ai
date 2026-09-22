@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import Link from "next/link";
+
 import type { Recommendation } from "@prisma/client";
 
 import { Badge } from "@/components/ui/badge";
@@ -85,10 +87,11 @@ export function HistoryCard({ recommendations }: HistoryCardProps) {
         </table>
       </div>
 
-      <p className="mt-4 text-xs leading-relaxed text-subtle">
-        “Demand then” shows the predicted demand index at your usual time and at the
-        recommended time. CityFlow AI does not record how long your journey actually took, so
-        no time saving is claimed here.
+      <p className="mt-4 text-xs text-subtle">
+        "Demand then": index at usual vs. recommended time ·{" "}
+        <Link href="/how-it-works#how-numbers-work" className="underline underline-offset-2">
+          how this works
+        </Link>
       </p>
     </Card>
   );

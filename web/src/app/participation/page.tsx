@@ -255,33 +255,28 @@ export default async function ParticipationPage() {
         {/* --------------------------------------------------------- privacy */}
         <Card className="mt-6">
           <CardHeader title="What this page can see" />
-          <ul className="space-y-2 text-sm leading-relaxed text-muted">
-            <li>
-              This page is <span className="font-medium text-fg">yours alone</span>. Nobody
-              else, including the Admin Portal, can see your individual figures — city-level
-              analysis works on counts and averages and does not select a person.
-            </li>
-            <li>
-              Your{" "}
-              <span className="font-mono text-fg">{user.cityflowId}</span> is the anonymous
-              identifier used everywhere except signing in. Your email address is used for
-              authentication and account recovery only.
-            </li>
-            <li>
-              You can change whether your trips are counted in city figures at any time from{" "}
-              <Link
-                href="/profile"
-                className="font-medium text-primary underline underline-offset-2"
-              >
-                your profile
-              </Link>
-              . It is currently{" "}
-              <span className="font-medium text-fg">
-                {summary.countedInCityFigures ? "on" : "off"}
-              </span>
-              .
-            </li>
-          </ul>
+          <p className="text-sm text-muted">
+            This page is yours alone — nobody else sees your individual figures. Counted in
+            city figures:{" "}
+            <span className="font-medium text-fg">
+              {summary.countedInCityFigures ? "on" : "off"}
+            </span>
+            , changeable from{" "}
+            <Link
+              href="/profile"
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              your profile
+            </Link>
+            . More on{" "}
+            <Link
+              href="/how-it-works#privacy"
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              how privacy works
+            </Link>
+            .
+          </p>
         </Card>
       </Container>
     </section>

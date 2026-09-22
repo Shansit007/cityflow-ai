@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -160,9 +161,11 @@ export function RecommendationCard(props: RecommendationCardProps) {
             </p>
           </div>
 
-          <p className="basis-full text-xs leading-relaxed text-subtle">
-            Estimated from predicted demand and the journey time you gave us — no real
-            journey was measured. {props.savingMethod}
+          <p className="basis-full text-xs text-subtle">
+            {props.savingMethod}{" "}
+            <Link href="/how-it-works#how-numbers-work" className="underline underline-offset-2">
+              How this is estimated
+            </Link>
           </p>
         </div>
       )}
@@ -278,12 +281,10 @@ export function RecommendationCard(props: RecommendationCardProps) {
               />
             )}
 
-            <p className="pt-2 text-xs leading-relaxed text-subtle">
-              Demand is shown on a 0–100 index where higher means closer to, or beyond,
-              comfortable road capacity. These figures are model predictions, not measured
-              traffic counts, and the estimated journey time is based on the normal journey
-              time you entered in your profile. Any time saving shown is arithmetic on those
-              two predictions — CityFlow AI has never timed one of your journeys.
+            <p className="pt-2 text-xs text-subtle">
+              <Link href="/how-it-works#how-numbers-work" className="underline underline-offset-2">
+                How these figures are calculated
+              </Link>
             </p>
           </dl>
         )}

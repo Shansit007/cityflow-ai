@@ -6,7 +6,6 @@ import { redirect } from "next/navigation";
 import { CITY_COOKIE_NAME } from "@/components/city/city-provider";
 import { DayCurve } from "@/components/insights/day-curve";
 import { SmoothingComparison } from "@/components/insights/smoothing-comparison";
-import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
@@ -275,23 +274,16 @@ export default async function InsightsPage() {
         </div>
 
         {/* ---------------------------------------------------- what's next */}
-        <div className="mt-8 rounded-card border border-border-base bg-surface-2 p-5">
-          <Badge tone="neutral">What would make this stronger</Badge>
-          <p className="mt-3 text-sm leading-relaxed text-muted">
-            Everything above is built from predicted demand and confirmed intentions. What
-            it cannot tell you is whether journeys actually got faster, because no real
-            journey has been timed. Recording opt-in departure and arrival times would turn
-            these estimates into measurements — and until that exists, this page says
-            &ldquo;predicted&rdquo; and &ldquo;estimated&rdquo; everywhere it means them.
-          </p>
-          <p className="mt-3 text-sm text-muted">
-            The simulation evidence for the core claim is separate and stronger:{" "}
-            <Link href="/how-it-works" className="font-medium text-primary underline">
-              see how it works
-            </Link>
-            .
-          </p>
-        </div>
+        <p className="mt-8 text-center text-xs text-subtle">
+          Everything above is predicted demand and confirmed intentions, not measured travel
+          times ·{" "}
+          <Link
+            href="/how-it-works#how-numbers-work"
+            className="underline underline-offset-2"
+          >
+            how this works
+          </Link>
+        </p>
       </Container>
     </section>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -206,11 +207,11 @@ export function MapPanel({ demandLevel, demandLabel, markers = [] }: MapPanelPro
           />
         </div>
 
-        <p className="mt-3 text-xs leading-relaxed text-subtle">
-          The shaded circle shows predicted demand for the city as a whole. CityFlow AI does
-          not yet have per-road traffic data, so individual roads are not coloured — doing so
-          would suggest a level of detail the system does not have. Road-issue markers appear
-          once smartphone road-impact detection is connected.
+        <p className="mt-3 text-xs text-subtle">
+          City-wide prediction, not per-road ·{" "}
+          <Link href="/how-it-works#how-numbers-work" className="underline underline-offset-2">
+            how this works
+          </Link>
         </p>
       </div>
     </div>

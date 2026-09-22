@@ -36,14 +36,11 @@ export function TrafficStatusCard({ now, cityName }: { now: DemandSlot; cityName
         {now.label}
       </p>
 
-      <p className="mt-2 text-sm leading-relaxed text-muted">
-        Demand index {now.index} out of 100 for the {formatTime(now.time)} slot. Higher means
-        closer to comfortable road capacity.
-      </p>
-
-      <p className="mt-3 text-xs leading-relaxed text-subtle">
-        This is a modelled prediction of travel demand, not a live measurement of traffic on
-        the road.
+      <p className="mt-2 text-xs text-subtle">
+        Index {now.index}/100, {formatTime(now.time)} ·{" "}
+        <Link href="/how-it-works#how-numbers-work" className="underline underline-offset-2">
+          modelled, not measured
+        </Link>
       </p>
     </Card>
   );
@@ -151,10 +148,11 @@ export function RoadConditionsCard({
         </ul>
       )}
 
-      <p className="mt-4 text-xs leading-relaxed text-subtle">
-        Nothing here has been inspected. CityFlow AI identifies and prioritises possible
-        issues; the municipal road-maintenance team — a separate service — inspects and
-        repairs them.
+      <p className="mt-4 text-xs text-subtle">
+        Detected, not inspected ·{" "}
+        <Link href="/how-it-works#road-conditions" className="underline underline-offset-2">
+          how this works
+        </Link>
       </p>
     </Card>
   );
@@ -225,15 +223,21 @@ export function TravelOptionsCard({ profile }: { profile: TravelProfile }) {
       )}
 
       {(profile.carpoolInterest || profile.publicTransportInterest) && (
-        <p className="mt-4 rounded-lg bg-surface-2 p-3 text-xs leading-relaxed text-muted">
-          You have registered interest in{" "}
+        <p className="mt-4 text-xs text-subtle">
+          Interested in{" "}
           {[
             profile.carpoolInterest ? "carpooling" : null,
             profile.publicTransportInterest ? "public transport" : null,
           ]
             .filter(Boolean)
-            .join(" and ")}
-          . Matching for these is not built yet — nothing has been arranged on your behalf.
+            .join(" and ")}{" "}
+          ·{" "}
+          <Link
+            href="/how-it-works#how-numbers-work"
+            className="underline underline-offset-2"
+          >
+            matching isn't built yet
+          </Link>
         </p>
       )}
     </Card>
