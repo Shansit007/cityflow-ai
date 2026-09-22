@@ -35,6 +35,7 @@ const ADMIN_LINKS = [
   { href: "/admin/roads", label: "Road conditions" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/accounts", label: "Accounts" },
+  { href: "/admin/municipal-access", label: "Municipal access" },
   { href: "/admin/intent", label: "Intent" },
   { href: "/admin/notifications", label: "Notifications" },
   { href: "/admin/reports", label: "Reports" },

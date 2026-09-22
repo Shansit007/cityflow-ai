@@ -276,6 +276,21 @@ export const adminNotificationSchema = z.object({
 
 export type AdminNotificationInput = z.infer<typeof adminNotificationSchema>;
 
+/** Payload accepted by POST /api/admin/municipal-access (grant) */
+export const grantMunicipalAccessSchema = z.object({
+  email: emailSchema,
+  cityCode: z.string().trim().min(2).max(40),
+});
+
+export type GrantMunicipalAccessInput = z.infer<typeof grantMunicipalAccessSchema>;
+
+/** Payload accepted by DELETE /api/admin/municipal-access (revoke) */
+export const revokeMunicipalAccessSchema = z.object({
+  email: emailSchema,
+});
+
+export type RevokeMunicipalAccessInput = z.infer<typeof revokeMunicipalAccessSchema>;
+
 /* ==========================================================================
    PHASE 5 — road-condition reporting
    ========================================================================== */
