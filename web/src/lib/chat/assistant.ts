@@ -48,6 +48,8 @@ export interface ProposalCard {
   updatedDeparture?: string;
   transportMode?: TransportMode;
   cancel?: boolean;
+  /** A new destination for TODAY only — see IntentProposal in intent-parser.ts. */
+  updatedDestinationArea?: string;
 
   /** Predicted demand at the proposed time. */
   demandIndex?: number;
@@ -249,7 +251,8 @@ export function buildAssistantReply(
           "• “I can leave 30 minutes late today”\n" +
           "• “I don't want to leave before 8”\n" +
           "• “I want to take the metro”\n" +
-          "• “I'm not travelling today”\n\n" +
+          "• “I'm not travelling today”\n" +
+          "• “I'm not going to the office today, I'm going to Church Street instead”\n\n" +
           "ASK ME ABOUT CITYFLOW AI — I will answer and point you to the page:\n" +
           "• “Where do I report a pothole?”\n" +
           "• “How do I change my usual departure time?”\n" +
@@ -316,12 +319,30 @@ export function buildAssistantReply(
       };
     }
 
+    case "CHANGE_DESTINATION": {
+      const destination = intent.proposal?.updatedDestinationArea;
+      if (!destination) break;
+
+      const departure = intent.proposal?.updatedDeparture;
+
+      return {
+        text: departure
+          ? `Shall I update today's plan — ${formatTime(departure)}, going to ${destination}?`
+          : `Shall I update today's plan to ${destination}? Your departure time stays the same unless you tell me otherwise.`,
+        proposal: {
+          updatedDestinationArea: destination,
+          updatedDeparture: departure,
+        },
+        requiresConfirmation: true,
+      };
+    }
+
     case "CHANGE_ROUTE":
       return {
         text:
-          "Changing where you travel to or from is a change to your routine rather than to today's timing, so I do not do it from here — putting your trip in the wrong area would quietly distort the demand figures.\n\n" +
+          "That sounds like a PERMANENT change — a new home area, office or route for every future day, not just today. I do not make that change from here, because putting it in the wrong area would quietly distort the demand figures for good.\n\n" +
           "You can update your home area or destination on the My profile page, and today's recommendation is recalculated the moment you save it.\n\n" +
-          "If it is only today's TIMING that has changed, tell me the time instead — for example “I want to leave at 6 PM today”.",
+          "If it is only TODAY that is different, tell me directly and I will update just today's plan — for example “I'm not going to the office today, I'm going to Church Street instead”.",
         proposal: null,
         requiresConfirmation: false,
       };
@@ -461,7 +482,7 @@ export function buildAssistantReply(
       "• “When should I leave?”\n" +
       "• “Where do I report a pothole?”\n" +
       "• “Who can see my data?”\n\n" +
-      "Say “help” for the full list. To change WHERE you travel, edit your home area or destination on the My profile page.",
+      "Say “help” for the full list. To change where you are going just for today, tell me the new place — for example “I'm not going to the office, I'm going to Church Street instead”. For a PERMANENT change to your home area or destination, use the My profile page.",
     proposal: null,
     requiresConfirmation: false,
   };

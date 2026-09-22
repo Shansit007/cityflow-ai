@@ -17,6 +17,8 @@
  * database until the person confirms it on screen.
  */
 
+import type { DayPart } from "@/lib/journeys/journey-service";
+
 /** A time the parser found in a sentence. */
 export interface ParsedTime {
   /** Minutes since midnight. */
@@ -269,4 +271,34 @@ const HEDGE_WORDS = [
 export function soundsUncertain(text: string): boolean {
   const input = ` ${text.toLowerCase()} `;
   return HEDGE_WORDS.some((word) => input.includes(word));
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Day part                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A time of day the sentence itself named, if any — "tonight", "this
+ * afternoon", or a bare "morning"/"evening"/etc. Used to pick WHICH of a
+ * person's several routines a sentence is about (see `assumedJourney`), not
+ * to resolve a clock time — `parseTime` above still owns that.
+ *
+ * Phrases are checked before bare words so "tonight" reads as night rather
+ * than a stray "morning" mentioned elsewhere in the same sentence winning by
+ * accident, and so a phrase always beats a same-day-part bare word.
+ */
+export function extractDayPart(text: string): DayPart | undefined {
+  const input = text.toLowerCase();
+
+  if (/\b(tonight|this evening|late evening|in the evening)\b/.test(input)) return "evening";
+  if (/\b(this morning|in the morning|early morning|first thing)\b/.test(input)) return "morning";
+  if (/\b(this afternoon|in the afternoon)\b/.test(input)) return "afternoon";
+  if (/\b(late at night|in the night|tonight late)\b/.test(input)) return "night";
+
+  if (/\bmorning\b/.test(input)) return "morning";
+  if (/\bafternoon\b/.test(input)) return "afternoon";
+  if (/\bevening\b/.test(input)) return "evening";
+  if (/\bnight\b/.test(input)) return "night";
+
+  return undefined;
 }

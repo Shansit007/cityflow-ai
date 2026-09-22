@@ -67,6 +67,13 @@ export function AssistantConsole({
   const router = useRouter();
 
   const [messages, setMessages] = useState<ChatMessageView[]>(initialMessages);
+  // Which routine each assistant message's proposal was about, keyed by
+  // message id. Echoed back on Confirm so the plan is written against the
+  // routine the person actually saw named on the card — not whichever one
+  // `assumedJourney` would guess again by the time they press the button,
+  // which can differ once a sentence has named a time of day. See
+  // lib/journeys/journey-service.ts.
+  const [journeyIdByMessage, setJourneyIdByMessage] = useState<Record<string, string>>({});
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -115,6 +122,13 @@ export function AssistantConsole({
 
       setMessages((current) => [...current, userMessage, assistantMessage]);
 
+      if (data.journey?.id) {
+        setJourneyIdByMessage((current) => ({
+          ...current,
+          [assistantMessage.id]: data.journey.id as string,
+        }));
+      }
+
       // A clear, unhedged instruction is acted on straight away — the assistant
       // already said it was doing it. Anything hedged or ambiguous arrives with
       // requiresConfirmation set and waits for the button instead.
@@ -138,9 +152,11 @@ export function AssistantConsole({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messageId,
+          journeyId: journeyIdByMessage[messageId],
           updatedDeparture: proposal.updatedDeparture,
           transportMode: proposal.transportMode,
           cancel: proposal.cancel,
+          updatedDestinationArea: proposal.updatedDestinationArea,
         }),
       });
 

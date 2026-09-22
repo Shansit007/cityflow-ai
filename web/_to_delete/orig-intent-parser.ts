@@ -1,12 +1,11 @@
 import { roundToSlot, toMinutes, toTimeString } from "@/lib/demand/time-slots";
-import { extractDayPart, parseShift, parseTime, soundsUncertain } from "@/lib/chat/time-parse";
+import { parseShift, parseTime, soundsUncertain } from "@/lib/chat/time-parse";
 import {
   CONFIDENT_TOPIC_SCORE,
   WEAK_TOPIC_SCORE,
   looksLikeAppQuestion,
   matchTopics,
 } from "@/lib/chat/app-guide";
-import type { DayPart } from "@/lib/journeys/journey-service";
 import type { TransportMode } from "@/lib/travel";
 
 /**
@@ -49,17 +48,7 @@ export type IntentKind =
   | "CANCEL_TRIP"
   /** "Go back to my usual time" */
   | "REVERT_TO_USUAL"
-  /**
-   * "I'm not going to the office today, I'm going to the cinema instead" — a
-   * ONE-OFF destination change for today, distinct from CHANGE_ROUTE below.
-   */
-  | "CHANGE_DESTINATION"
-  /**
-   * A PERMANENT change of home area, office or route — "my office moved",
-   * "new address". Never applied directly; the profile page is where a
-   * routine itself changes, so today's demand figures are never quietly
-   * distorted by a typo in a one-off message.
-   */
+  /** "My destination is different today" — a route change, not a time change. */
   | "CHANGE_ROUTE"
   /** "When should I leave?" */
   | "ASK_RECOMMENDATION"
@@ -82,13 +71,6 @@ export interface IntentProposal {
   transportMode?: TransportMode;
   /** True when the person is not travelling at all. */
   cancel?: boolean;
-  /**
-   * A new destination for TODAY only — never written back to the saved
-   * routine. Free text, normalised the same way an onboarding area is (see
-   * lib/demand/zones.ts), so "Church Street" and "church street" land in the
-   * same place in the aggregated demand figures.
-   */
-  updatedDestinationArea?: string;
 }
 
 export interface ParsedIntent {
@@ -119,12 +101,6 @@ export interface ParsedIntent {
   suggestedTopicId?: string;
   /** The small-talk flavour, so the reply can be appropriate. */
   smallTalk?: "thanks" | "affirm" | "farewell";
-  /**
-   * A time of day the sentence named ("tonight", "this morning"), used to
-   * pick which of the person's several routines this is about. See
-   * `assumedJourney` in lib/journeys/journey-service.ts.
-   */
-  dayPart?: DayPart;
 }
 
 /** What the parser needs to know about the person to read a sentence correctly. */
@@ -154,78 +130,6 @@ const MODE_PATTERNS: Array<{ mode: TransportMode; positive: RegExp; negative?: R
 
 const NEGATION = /\b(don'?t|do not|not|no|avoid|rather not|can'?t|cannot)\b/;
 
-/** A verb that means "travelling somewhere", for spotting a negated clause. */
-const GOING_VERB = /\b(going|go|travel(?:ling|ing)?|leaving|heading)\b/;
-
-/** "going to X" / "heading to X" — a clause naming a new destination. */
-const DESTINATION_CLAUSE =
-  /\b(?:going|heading|headed|off)\s+to\s+(?:the\s+)?([a-z][a-z0-9'\-. ]*)/;
-/** "going out for X" — covers "going out for dinner", which has no "to". */
-const DESTINATION_OUT_FOR = /\bgoing out (?:for|to)\s+([a-z][a-z0-9'\-. ]*)/;
-
-/** Trims a captured destination phrase down to just the place or plan named. */
-function cleanDestinationPhrase(raw: string): string {
-  return raw
-    .replace(/\bwith\b.*$/i, "")
-    .replace(/\s+at\s+\d.*$/i, "")
-    .replace(/\b(today|tonight|tomorrow|instead|now|this (?:morning|afternoon|evening))\b.*$/i, "")
-    .replace(/[.,!?;]+$/g, "")
-    .trim();
-}
-
-interface DestinationChange {
-  destination: string;
-  /** A time mentioned alongside the new destination, if any, "HH:MM". */
-  departure?: string;
-}
-
-/**
- * Reads a sentence for a ONE-OFF destination swap — "I'm not going to the
- * office today, I'm going to the cinema instead", "I'm not going home
- * tonight, I'm going out for dinner with my friends".
- *
- * The trick is splitting the sentence into clauses and only reading a
- * destination out of a clause that is NOT itself negated — otherwise "not
- * going to the office" would be misread as a proposal to go to the office.
- * Returns null for anything that is not clearly this shape, including a
- * plain cancellation with no redirect — that is CANCEL_TRIP's job, checked
- * separately by the caller.
- */
-function extractDestinationChange(input: string, reference: number): DestinationChange | null {
-  const hasNegatedGoing = NEGATION.test(input) && GOING_VERB.test(input);
-  const hasInstead = /\binstead\b/.test(input);
-
-  // Neither signal present — this is not a redirect sentence at all, and
-  // scanning clauses for a stray "going to" would risk treating an unrelated
-  // mention of a place as a routine change.
-  if (!hasNegatedGoing && !hasInstead) return null;
-
-  const clauses = input
-    .split(/,|;|\.|(?:\bbut\b)|(?:\bhowever\b)/)
-    .map((clause) => clause.trim())
-    .filter(Boolean);
-
-  for (const clause of clauses) {
-    const clauseIsNegated = NEGATION.test(clause) && GOING_VERB.test(clause);
-    if (clauseIsNegated) continue;
-
-    const match = clause.match(DESTINATION_OUT_FOR) ?? clause.match(DESTINATION_CLAUSE);
-    if (!match) continue;
-
-    const destination = cleanDestinationPhrase(match[1]);
-    if (destination.length < 2) continue;
-
-    const time = parseTime(clause, reference);
-
-    return {
-      destination,
-      departure: time ? toTimeString(roundToSlot(time.minutes)) : undefined,
-    };
-  }
-
-  return null;
-}
-
 /* -------------------------------------------------------------------------- */
 /*  The parser                                                                 */
 /* -------------------------------------------------------------------------- */
@@ -238,7 +142,6 @@ export function parseIntent(rawText: string, context: IntentContext): ParsedInte
 
   const uncertain = soundsUncertain(input);
   const reference = toMinutes(context.usualDeparture) ?? 9 * 60;
-  const dayPart = extractDayPart(input);
 
   // ------------------------------------------------------------- greeting
   if (/^(hi|hello|hey|namaste|good (morning|afternoon|evening))\b/.test(input)) {
@@ -267,38 +170,6 @@ export function parseIntent(rawText: string, context: IntentContext): ParsedInte
     return { kind: "HELP", requiresConfirmation: false };
   }
 
-  // --------------------------------------------- one-off destination change
-  // "I'm not going to the office today, I'm going to the cinema at 10 AM."
-  // "I'm not going to Whitefield. I'm going to Church Street."
-  // "I'm not going home tonight. I'm going out for dinner with my friends."
-  //
-  // Checked BEFORE cancel and BEFORE the permanent route change below, because
-  // a redirect sentence usually contains the same "not going" words a plain
-  // cancellation does — the difference is whether a second, non-negated
-  // clause names somewhere new to go instead.
-  //
-  // This is a change to TODAY'S plan only, never the saved routine, which is
-  // what makes it safe for the assistant to apply directly rather than
-  // sending the person to their profile — the same reasoning that already
-  // lets it move a departure time. A genuinely PERMANENT change ("my office
-  // moved") still falls through to CHANGE_ROUTE below.
-  const destinationChange = extractDestinationChange(input, reference);
-  if (destinationChange) {
-    return {
-      kind: "CHANGE_DESTINATION",
-      proposal: {
-        updatedDestinationArea: destinationChange.destination,
-        updatedDeparture: destinationChange.departure,
-      },
-      // A free-text destination is read with less certainty than a clock
-      // time, so — unlike a plain departure change — this always asks first.
-      requiresConfirmation: true,
-      confirmationReason: "uncertain-wording",
-      matchedText: text,
-      dayPart,
-    };
-  }
-
   // ------------------------------------------------------------- cancel
   if (
     /\b(not travel|not travelling|not traveling|not going|no trip|cancel (my )?(trip|travel|plan)|staying home|working from home|wfh|day off|holiday today|leave cancelled)\b/.test(
@@ -311,7 +182,6 @@ export function parseIntent(rawText: string, context: IntentContext): ParsedInte
       requiresConfirmation: uncertain,
       confirmationReason: uncertain ? "uncertain-wording" : undefined,
       matchedText: text,
-      dayPart,
     };
   }
 
@@ -323,18 +193,13 @@ export function parseIntent(rawText: string, context: IntentContext): ParsedInte
       proposal: { updatedDeparture: context.usualDeparture },
       requiresConfirmation: false,
       matchedText: text,
-      dayPart,
     };
   }
 
-  // ------------------------------------------------------- route change
-  // A PERMANENT change of home area, office, or route — not covered by the
-  // one-off destination change above (which requires a clear "not going to
-  // X, going to Y instead" redirect shape). Something like "my office moved"
-  // or "I need to work from a different location from now on" belongs on the
-  // profile page: it should be true every future day, not just today, and
-  // getting that wrong would quietly distort every future day's demand
-  // figures rather than just today's.
+  // --------------------------------------------------------- route change
+  // A different origin or destination is not something the assistant can infer
+  // safely — it would need a new area name, and getting that wrong would put a
+  // person's trip in the wrong demand zone. It points at the profile instead.
   if (
     /\b(destination|origin|route|going somewhere else|different (place|location|office|area)|another (place|location|office)|work from|new office|new address)\b/.test(
       input
@@ -455,7 +320,6 @@ export function parseIntent(rawText: string, context: IntentContext): ParsedInte
             : undefined,
         matchedText: floor.matchedText,
         referencedTime: toTimeString(floorSlot),
-        dayPart,
       };
     }
   }
@@ -477,7 +341,6 @@ export function parseIntent(rawText: string, context: IntentContext): ParsedInte
           : "uncertain-wording",
         matchedText: arrival.matchedText,
         referencedTime: toTimeString(roundToSlot(arrival.minutes)),
-        dayPart,
       };
     }
   }
@@ -494,7 +357,6 @@ export function parseIntent(rawText: string, context: IntentContext): ParsedInte
       requiresConfirmation: uncertain,
       confirmationReason: uncertain ? "uncertain-wording" : undefined,
       matchedText: shift.matchedText,
-      dayPart,
     };
   }
 
@@ -511,7 +373,6 @@ export function parseIntent(rawText: string, context: IntentContext): ParsedInte
       requiresConfirmation: true,
       confirmationReason: "uncertain-wording",
       matchedText: text,
-      dayPart,
     };
   }
 
@@ -537,7 +398,6 @@ export function parseIntent(rawText: string, context: IntentContext): ParsedInte
           ? "uncertain-wording"
           : undefined,
       matchedText: departure.matchedText,
-      dayPart,
     };
   }
 
@@ -559,7 +419,6 @@ export function parseIntent(rawText: string, context: IntentContext): ParsedInte
         ? "ambiguous-time"
         : "uncertain-wording",
       matchedText: departure.matchedText,
-      dayPart,
     };
   }
 

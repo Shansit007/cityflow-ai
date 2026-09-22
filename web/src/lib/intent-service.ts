@@ -43,6 +43,14 @@ export interface ApplyIntentionArgs {
     updatedDeparture?: string;
     transportMode?: TransportMode;
     cancel?: boolean;
+    /**
+     * A new destination for TODAY only — typically from Saarthi understanding
+     * something like "I'm not going to the office, I'm going to Church Street
+     * instead". Never touches the saved routine (Journey.destinationArea);
+     * only today's row in travel_intentions. Omitted, the journey's own
+     * destination is used, exactly as before this field existed.
+     */
+    updatedDestinationArea?: string;
   };
 }
 
@@ -83,6 +91,15 @@ export async function applyIntention(
   const transportMode =
     change.transportMode ?? existing?.transportMode ?? journey.mode;
 
+  // A one-off destination change (Saarthi) wins; otherwise keep whatever was
+  // already confirmed for today, if anything, and otherwise fall back to the
+  // routine's own destination — the same "explicit change, then today's
+  // existing row, then the routine" precedence newDeparture and transportMode
+  // already use above.
+  const destinationZone = change.updatedDestinationArea
+    ? toZoneKey(change.updatedDestinationArea)
+    : (existing?.destinationZone ?? toZoneKey(journey.destinationArea));
+
   // ------------------------------------------------- 1. store the intention
   const intention = await prisma.travelIntention.upsert({
     where: key,
@@ -92,7 +109,7 @@ export async function applyIntention(
       travelDate,
       cityCode,
       originZone: toZoneKey(journey.originArea),
-      destinationZone: toZoneKey(journey.destinationArea),
+      destinationZone,
       plannedDeparture: journey.usualDeparture,
       updatedDeparture: newSlot === null ? newDeparture : toTimeString(newSlot),
       transportMode,
@@ -104,7 +121,7 @@ export async function applyIntention(
     update: {
       cityCode,
       originZone: toZoneKey(journey.originArea),
-      destinationZone: toZoneKey(journey.destinationArea),
+      destinationZone,
       plannedDeparture: journey.usualDeparture,
       updatedDeparture: newSlot === null ? newDeparture : toTimeString(newSlot),
       transportMode,

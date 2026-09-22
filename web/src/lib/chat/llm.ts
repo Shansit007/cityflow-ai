@@ -59,6 +59,7 @@ const MODEL_KINDS = [
   "SET_MODE",
   "CANCEL_TRIP",
   "REVERT_TO_USUAL",
+  "CHANGE_DESTINATION",
   "CHANGE_ROUTE",
   "ASK_RECOMMENDATION",
   "ASK_TRAFFIC",
@@ -81,6 +82,13 @@ const llmResponseSchema = z.object({
     .nullable()
     .optional(),
   cancel: z.boolean().optional(),
+  /**
+   * For CHANGE_DESTINATION only: the new destination, in the person's own
+   * words (e.g. "Church Street", "the cinema", "dinner with friends"). Never
+   * invented — null when the sentence does not clearly name where they are
+   * going instead.
+   */
+  destinationMentioned: z.string().max(120).nullable().optional(),
   /** True if the model had to guess AM vs PM. */
   ambiguousTime: z.boolean().optional(),
   /** True if the sentence hedges ("I think", "maybe"). */
@@ -97,6 +105,7 @@ function systemPrompt(context: IntentContext): string {
     "- timeMentioned: the clock time the sentence is about, as 24-hour HH:MM, or null if none. Resolve relative phrases (\"in half an hour\", \"half past 7 tonight\") against the context below. For SET_ARRIVAL this is the ARRIVAL time the person named, not a departure.",
     "- transportMode: one of CAR, BIKE, BUS, METRO, WALK, CYCLE, OTHER, or null.",
     "- cancel: true only if the person says they are not travelling at all today.",
+    "- destinationMentioned: for CHANGE_DESTINATION only — the new place or plan they named, in a few words, exactly as they described it. Otherwise null.",
     "- ambiguousTime: true if you had to guess whether a time was AM or PM.",
     "- uncertainWording: true if the sentence hedges (\"I think\", \"maybe\", \"probably\").",
     "- smallTalk: for kind SMALL_TALK only — \"thanks\", \"affirm\" (ok/yes/sure on its own) or \"farewell\".",
@@ -112,7 +121,8 @@ function systemPrompt(context: IntentContext): string {
     "- SET_ARRIVAL is for \"I need to reach/arrive by X\" — X goes in timeMentioned as the arrival, not a departure.",
     "- NOT_BEFORE is for \"I don't want to leave before X\" / \"not before X\".",
     "- SHIFT_DEPARTURE is a RELATIVE change with no clock time (\"leaving 20 minutes late\", \"a bit earlier\") — leave timeMentioned null in that case.",
-    "- CHANGE_ROUTE is only for a DIFFERENT origin, destination or office — never a time change.",
+    "- CHANGE_DESTINATION is for a ONE-OFF change to where they are going TODAY only — \"I'm not going to the office, I'm going to the cinema instead\", \"not going home tonight, going out for dinner\". Put the new place in destinationMentioned.",
+    "- CHANGE_ROUTE is only for a PERMANENT change of home area, office or route stated as an ongoing change (\"my office moved\", \"new address\") — never a one-off today, and never a time change.",
     "- If the sentence does not clearly match any of these, return kind UNKNOWN and leave the other fields null/false.",
     "- Never invent a time that was not stated or clearly implied.",
   ].join("\n");
@@ -156,6 +166,22 @@ function toParsedIntent(
           ? toTimeString(roundToSlot(toMinutes(raw.timeMentioned) ?? 0))
           : undefined,
       };
+
+    case "CHANGE_DESTINATION": {
+      const destination = raw.destinationMentioned?.trim();
+      if (!destination) return { kind: "UNKNOWN", requiresConfirmation: false };
+
+      return {
+        kind: "CHANGE_DESTINATION",
+        proposal: {
+          updatedDestinationArea: destination,
+          updatedDeparture: raw.timeMentioned ?? undefined,
+        },
+        requiresConfirmation: true,
+        confirmationReason: "uncertain-wording",
+        matchedText: rawText,
+      };
+    }
 
     case "CHANGE_ROUTE":
       return { kind: "CHANGE_ROUTE", requiresConfirmation: false, matchedText: rawText };

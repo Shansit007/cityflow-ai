@@ -23,6 +23,7 @@ import { appHour, formatAppDate } from "@/lib/app-time";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getCity } from "@/lib/cities";
 import { DEMAND_LEVEL_LABEL } from "@/lib/demand/demand-model";
+import { toZoneKey, zoneKeyToLabel } from "@/lib/demand/zones";
 import { loadIssuesForUser } from "@/lib/roads/road-service";
 import { confidenceMeta, issueTypeLabel } from "@/lib/roads/types";
 import { loadTodayForUser, type JourneyToday } from "@/lib/recommendation-service";
@@ -235,6 +236,13 @@ function JourneyBlock({
         savingIsMeaningful={savings.isMeaningful}
         savingMethod={savings.method}
         journeyAtRecommended={savings.journeyAtRecommended}
+        todaysDestinationOverride={
+          entry.intention &&
+          entry.intention.status === "CONFIRMED" &&
+          entry.intention.destinationZone !== toZoneKey(journey.destinationArea)
+            ? zoneKeyToLabel(entry.intention.destinationZone)
+            : null
+        }
       />
 
       {showRoadSensing && (

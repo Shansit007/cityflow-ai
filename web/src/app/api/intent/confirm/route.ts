@@ -18,6 +18,7 @@ import {
 } from "@/lib/chat/history-service";
 import { applyIntention } from "@/lib/intent-service";
 import { formatTime } from "@/lib/demand/time-slots";
+import { zoneKeyToLabel } from "@/lib/demand/zones";
 import { fieldErrorsFrom, intentConfirmSchema } from "@/lib/validation";
 
 /**
@@ -104,12 +105,18 @@ export async function POST(request: Request) {
           } adjusted to keep trips spread out.`
         : `Your plan is saved. It did not push any time slot over capacity, so no other recommendations needed adjusting.`;
 
+    const destinationChanged = change.updatedDestinationArea !== undefined;
+
     const confirmationText =
       result.intention.status === "CANCELLED"
         ? "Your trip has been removed from today's plan and from today's demand figures."
-        : `Saved — you are planned to leave at ${formatTime(
-            result.intention.updatedDeparture
-          )} today.`;
+        : destinationChanged
+          ? `Saved — today you are planned to go to ${zoneKeyToLabel(
+              result.intention.destinationZone
+            )}, leaving at ${formatTime(result.intention.updatedDeparture)}.`
+          : `Saved — you are planned to leave at ${formatTime(
+              result.intention.updatedDeparture
+            )} today.`;
 
     // Mark the card in the transcript as dealt with, so the history shows the
     // outcome rather than a button that no longer applies.
@@ -137,6 +144,7 @@ export async function POST(request: Request) {
         updatedDeparture: result.intention.updatedDeparture,
         transportMode: result.intention.transportMode,
         status: result.intention.status,
+        destinationLabel: zoneKeyToLabel(result.intention.destinationZone),
       },
       confirmationText,
       cityEffect,

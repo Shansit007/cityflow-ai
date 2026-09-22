@@ -198,7 +198,7 @@ export const chatMessageSchema = z.object({
 /**
  * A change the person has explicitly confirmed.
  *
- * At least one of the three must be present — an empty confirmation would write
+ * At least one of the four must be present — an empty confirmation would write
  * a row that says nothing.
  */
 export const intentConfirmSchema = z
@@ -218,12 +218,18 @@ export const intentConfirmSchema = z
       .enum(["CAR", "BIKE", "BUS", "METRO", "WALK", "CYCLE", "OTHER"])
       .optional(),
     cancel: z.boolean().optional(),
+    /**
+     * A new destination for TODAY only, exactly as shown on the confirmation
+     * card. Never written back to the saved routine — see applyIntention.
+     */
+    updatedDestinationArea: z.string().trim().min(1).max(120).optional(),
   })
   .refine(
     (data) =>
       data.updatedDeparture !== undefined ||
       data.transportMode !== undefined ||
-      data.cancel === true,
+      data.cancel === true ||
+      data.updatedDestinationArea !== undefined,
     { message: "There is nothing to confirm." }
   );
 

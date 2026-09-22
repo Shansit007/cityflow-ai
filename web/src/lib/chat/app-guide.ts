@@ -136,7 +136,7 @@ export const APP_TOPICS: AppTopic[] = [
     ],
     answer:
       "Your regular routine — home area, destination, usual departure, required arrival, journey time, how flexible you are, transport modes and privacy choices — all live on the My profile page. Change anything and today's recommendation is recalculated the moment you save.\n\n" +
-      "I deliberately do not change your home or destination from this conversation. Guessing an area wrong would quietly put your trip in the wrong part of the city's demand figures, and you would have no way of noticing.",
+      "That page is for a PERMANENT change — one that should be true every future day, such as a new office or a house move. For a one-off change to today only, tell me directly and I will update just today's plan — for example “I'm not going to the office today, I'm going to Church Street instead” or “I'm not going home tonight, I'm going out for dinner”.",
     where: { label: "My profile", href: "/profile" },
   },
   {

@@ -8,6 +8,7 @@ import {
   recordUserMessage,
 } from "@/lib/chat/history-service";
 import { parseIntentSmart } from "@/lib/chat/llm";
+import { extractDayPart } from "@/lib/chat/time-parse";
 import { getCity } from "@/lib/cities";
 import { prisma } from "@/lib/db";
 import { demandAtFor, loadDemandContext } from "@/lib/demand/aggregate";
@@ -60,10 +61,17 @@ export async function POST(request: Request) {
     // Which of the person's routines is this sentence most likely about? The
     // confirmation card names it, so a wrong guess is corrected before anything
     // is written. See `assumedJourney`.
+    //
+    // The day-part hint is read directly off the raw sentence, before the
+    // journey is picked, precisely so someone with both a morning and an
+    // evening routine who says "tonight" gets the evening one selected from
+    // the very first line of context built below — not just at confirm time.
+    const dayPartHint = extractDayPart(parsed.data.message);
     const journey = await assumedJourney(
       session.userId,
       localNow,
-      appMinutesSinceMidnight()
+      appMinutesSinceMidnight(),
+      dayPartHint
     );
 
     if (!journey) {

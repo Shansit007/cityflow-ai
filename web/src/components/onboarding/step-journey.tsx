@@ -1,6 +1,7 @@
 "use client";
 
 import { useCity } from "@/components/city/city-provider";
+import { CitySelector } from "@/components/city/city-selector";
 import { ChoiceGroup } from "@/components/ui/choice-group";
 import { TextField } from "@/components/ui/input";
 import type { StepProps } from "@/components/onboarding/types";
@@ -12,12 +13,27 @@ import { DESTINATION_TYPES, TRANSPORT_MODES } from "@/lib/travel";
  * Asks for AREAS, not addresses. An area is all the demand model needs to place
  * a trip on the network, and asking for less is the whole point of the privacy
  * model: we cannot leak a home address we never collected.
+ *
+ * This is also the ONLY place a person can change their city by hand. Picking
+ * a city here updates it everywhere in the app — the header just shows what is
+ * active (see ActiveCityIndicator) rather than offering a second way to change
+ * it, so there is never more than one place city selection can drift out of
+ * sync from.
  */
 export function StepJourney({ draft, update, errors }: StepProps) {
   const { city } = useCity();
 
   return (
     <div className="space-y-6">
+      <div>
+        <label className="mb-2 block text-sm font-medium text-fg">Your city</label>
+        <CitySelector variant="full" />
+        <p className="mt-2 text-xs text-subtle">
+          This is the only place to change your city — it updates CityFlow AI everywhere,
+          including your dashboard, road reports and Saarthi.
+        </p>
+      </div>
+
       <div className="rounded-lg border border-border-base bg-surface-2 p-4">
         <p className="text-sm leading-relaxed text-muted">
           Enter the <span className="font-medium text-fg">area</span> you travel from and to

@@ -122,3 +122,47 @@ export function searchCities(query: string): City[] {
     return haystack.includes(q);
   });
 }
+
+/**
+ * Beyond this distance from every supported city's centre, a detected
+ * position is not treated as "in" any of them — guessing Delhi for someone
+ * standing in Mumbai would be worse than not detecting a city at all.
+ */
+const NEAREST_CITY_MAX_KM = 120;
+
+/**
+ * Equirectangular approximation — accurate enough at city scale and far
+ * cheaper than a true haversine, which this does not need to be exact for.
+ */
+function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const EARTH_RADIUS_KM = 6371;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+
+  const x = toRad(b.lng - a.lng) * Math.cos(toRad((a.lat + b.lat) / 2));
+  const y = toRad(b.lat - a.lat);
+
+  return Math.sqrt(x * x + y * y) * EARTH_RADIUS_KM;
+}
+
+/**
+ * The supported city whose centre is closest to a detected position, or null
+ * when nothing is close enough to call a confident match. Used only for
+ * turning a device's GPS coordinates into an active city — never for anything
+ * that needs real routing-distance accuracy.
+ */
+export function nearestCity(lat: number, lng: number): City | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  let closest: City | null = null;
+  let closestKm = Infinity;
+
+  for (const city of CITIES) {
+    const km = distanceKm({ lat, lng }, city.center);
+    if (km < closestKm) {
+      closest = city;
+      closestKm = km;
+    }
+  }
+
+  return closest && closestKm <= NEAREST_CITY_MAX_KM ? closest : null;
+}

@@ -8,7 +8,7 @@ import { AdminHeader } from "@/components/admin/admin-header";
 import { MunicipalHeader } from "@/components/municipal/municipal-header";
 import type { SessionRole } from "@/lib/auth/jwt";
 import { Logo } from "@/components/brand/logo";
-import { CitySelector } from "@/components/city/city-selector";
+import { ActiveCityIndicator } from "@/components/city/active-city-indicator";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
  * Site header.
  *
  * Contains, from left to right:
- *   logo → navigation → city selector → notifications → theme toggle → account
+ *   logo → navigation → active city indicator → notifications → theme toggle → account
  *
  * On small screens the navigation collapses into a single menu button so the
  * city selector and the theme toggle always stay reachable with one thumb.
@@ -191,7 +191,7 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
 
           {/* ------------------------------------------------- right: tools */}
           <div className="flex shrink-0 items-center gap-2">
-            <CitySelector className="hidden md:block" />
+            <ActiveCityIndicator className="hidden md:block" />
 
             <NotificationsButton />
             <ThemeToggle />
@@ -260,7 +260,7 @@ export function SiteHeader({ session }: { session: HeaderSession | null }) {
           <Container width="wide">
             <div className="flex flex-col gap-2 py-4">
               <div className="md:hidden">
-                <CitySelector variant="full" className="w-full" />
+                <ActiveCityIndicator variant="full" />
               </div>
 
               {!session &&

@@ -128,6 +128,19 @@ export function defaultLabelFor(
   return `${partOfDay} ${destination}`;
 }
 
+/**
+ * Which part of the day a departure time falls in. Same boundaries as
+ * `defaultLabelFor` above, kept as its own function because callers that need
+ * the bucket (Saarthi's journey selection) have no destination type to build
+ * a label from — they only need the time-of-day judgement.
+ */
+export type DayPart = "morning" | "afternoon" | "evening" | "night";
+
+export function dayPartForTime(time: string): DayPart {
+  const hour = Number(time.slice(0, 2));
+  return hour < 12 ? "morning" : hour < 17 ? "afternoon" : hour < 21 ? "evening" : "night";
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Reads                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -361,23 +374,40 @@ export async function reorderJourneys(
  * Nothing is ever written on the strength of this function alone.
  *
  * The order of preference:
+ *   0. If the sentence itself names a time of day ("tonight", "this
+ *      afternoon") and exactly one of today's routines falls in that part of
+ *      the day, that routine wins outright — someone with both a morning and
+ *      an evening routine who says "tonight" means the evening one, even
+ *      while the morning trip is still technically "upcoming".
  *   1. The next routine still to depart today.
  *   2. If today's are all in the past, the first one today (they are probably
  *      talking about tomorrow's version of their morning trip).
  *   3. Any routine at all, for someone whose routines do not run today.
  *
  * @param minutesNow Minutes since midnight, in the app's timezone.
+ * @param dayPartHint A time of day the sentence named, if any. See rule 0.
  */
 export async function assumedJourney(
   userId: string,
   date: Date,
-  minutesNow: number
+  minutesNow: number,
+  dayPartHint?: DayPart
 ): Promise<Journey | null> {
   const today = await journeysForDate(userId, date);
 
   if (today.length > 0) {
     const toMinutes = (time: string) =>
       Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+
+    if (dayPartHint) {
+      const matchingDayPart = today.filter(
+        (journey) => dayPartForTime(journey.usualDeparture) === dayPartHint
+      );
+      // Only act on the hint when it points at exactly one routine — with two
+      // matches it is no more informative than not having it at all, so we
+      // fall through to the ordinary nearest-upcoming rule below.
+      if (matchingDayPart.length === 1) return matchingDayPart[0];
+    }
 
     const upcoming = today
       .filter((journey) => toMinutes(journey.usualDeparture) >= minutesNow)

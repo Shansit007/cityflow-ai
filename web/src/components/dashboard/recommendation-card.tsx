@@ -61,6 +61,13 @@ interface RecommendationCardProps {
   savingMethod: string;
   /** Modelled journey length at the recommended departure, in minutes. */
   journeyAtRecommended: number;
+  /**
+   * Set when today's confirmed plan is going somewhere OTHER than this
+   * routine's saved destination — typically because Saarthi understood a
+   * sentence like "I'm not going to the office, I'm going to Church Street
+   * instead". Never changes the saved routine itself, just today.
+   */
+  todaysDestinationOverride?: string | null;
 }
 
 export function RecommendationCard(props: RecommendationCardProps) {
@@ -118,6 +125,11 @@ export function RecommendationCard(props: RecommendationCardProps) {
               ? "CityFlow AI suggests a small change today"
               : "Your usual time looks reasonable today"}
           </p>
+          {props.todaysDestinationOverride && (
+            <p className="mt-1.5 text-sm font-medium text-primary">
+              Today only: going to {props.todaysDestinationOverride} instead
+            </p>
+          )}
         </div>
 
         {status !== "PENDING" && (

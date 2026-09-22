@@ -50,6 +50,10 @@ export function ProposalCardView({
           <Row label="Travelling today" value="No" />
         )}
 
+        {proposal.updatedDestinationArea && (
+          <Row label="Destination (today only)" value={proposal.updatedDestinationArea} strong />
+        )}
+
         {proposal.updatedDeparture && (
           <Row label="Departure" value={formatTime(proposal.updatedDeparture)} strong />
         )}
