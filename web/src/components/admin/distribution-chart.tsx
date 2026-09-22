@@ -65,7 +65,7 @@ export function DistributionChart({
         <div className="min-w-[52rem]">
           <div className="flex h-40 items-end gap-1" aria-hidden="true">
             {distribution.map((bucket) => (
-              <div key={bucket.hour} className="flex flex-1 items-end gap-[2px]">
+              <div key={bucket.hour} className="flex h-full flex-1 items-end gap-[2px]">
                 <div
                   title={`${bucket.label} original — ${bucket.originalPercent}%`}
                   className="flex-1 rounded-t-sm bg-border-strong"

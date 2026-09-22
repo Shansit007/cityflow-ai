@@ -133,7 +133,7 @@ export default async function AdminDemandShiftPage({
               <div className="overflow-x-auto">
                 <div className="flex h-32 min-w-[36rem] items-end gap-1" aria-hidden="true">
                   {shift.trend.map((point) => (
-                    <div key={point.date} className="flex flex-1 flex-col items-center gap-1">
+                    <div key={point.date} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
                       <div
                         title={`${point.date}: ${point.confirmedTrips} confirmed plans`}
                         className="w-full rounded-t-sm bg-primary"
