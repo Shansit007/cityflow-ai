@@ -11,16 +11,24 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
 
   /**
-   * Build a self-contained server for the Docker image.
+   * Build a self-contained server for the Docker image — but only for the
+   * Docker image.
    *
    * `standalone` emits `.next/standalone/server.js` together with only the
    * node_modules the application actually imports, which takes the runtime
    * image from roughly 1.2 GB to about 250 MB.
    *
-   * Vercel ignores this setting and builds its own way, so leaving it on costs
-   * the hosted deployment nothing — it only affects `docker compose`.
+   * On Vercel, this setting actively breaks the build rather than being
+   * ignored: it moves Next.js's file-tracing manifests under
+   * `.next/standalone/` instead of the top level, and Vercel's own packaging
+   * step looks for `.next/next-server.js.nft.json` at the top level —
+   * doesn't find it — and fails with `ENOENT: .../next-server.js.nft.json`
+   * right after the build otherwise succeeds. Vercel has its own equivalent
+   * output tracing built in and does not need this flag at all, so it is
+   * only applied when NOT building on Vercel, detected via the `VERCEL`
+   * environment variable Vercel sets automatically on every build.
    */
-  output: "standalone",
+  output: process.env.VERCEL ? undefined : "standalone",
 
   /**
    * Keep the Prisma client OUT of the bundler.
