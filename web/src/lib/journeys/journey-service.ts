@@ -242,10 +242,34 @@ export async function updateJourney(
   const owned = await getOwnedJourney(userId, journeyId);
   if (!owned) return null;
 
+  /*
+    A label nobody customised should keep tracking time of day rather than
+    freezing at whatever it said when the journey was created — moving a
+    "Morning commute" to a 6 PM departure should turn it into "Evening
+    commute", not leave a now-wrong name sitting there.
+
+    The edit form always submits the current label text, so there is no
+    "blank means auto" signal here the way there is on create. Instead: if
+    what was submitted is unchanged from what is stored, AND what is stored
+    exactly matches the auto-generated name for its OLD departure time and
+    destination, treat it as still auto and regenerate it for the NEW ones.
+    Anything the person actually typed — including coincidentally re-typing
+    the same words — is left alone.
+  */
+  const trimmedInput = input.label?.trim();
+  const wasUnchanged = !trimmedInput || trimmedInput === owned.label;
+  const wasAutoLabel =
+    owned.label === defaultLabelFor(owned.destinationType, owned.usualDeparture);
+
+  const label =
+    wasUnchanged && wasAutoLabel
+      ? defaultLabelFor(input.destinationType, input.usualDeparture)
+      : trimmedInput || owned.label;
+
   return prisma.journey.update({
     where: { id: journeyId },
     data: {
-      label: input.label?.trim() || owned.label,
+      label,
       originArea: input.originArea,
       originLat: input.originLat ?? null,
       originLng: input.originLng ?? null,

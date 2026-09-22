@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { HistoryCard } from "@/components/dashboard/history-card";
 import { JourneyList } from "@/components/journeys/journey-list";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
@@ -10,6 +11,7 @@ import {
   MAX_JOURNEYS_PER_USER,
   listJourneys,
 } from "@/lib/journeys/journey-service";
+import { loadRecommendationHistory } from "@/lib/recommendation-service";
 
 export const metadata: Metadata = {
   title: "My journeys",
@@ -26,7 +28,11 @@ export default async function JourneysPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/journeys");
 
-  const journeys = await listJourneys(user.id);
+  // Independent queries — run together rather than one waiting on the other.
+  const [journeys, history] = await Promise.all([
+    listJourneys(user.id),
+    loadRecommendationHistory(user.id),
+  ]);
   const atLimit = journeys.length >= MAX_JOURNEYS_PER_USER;
 
   return (
@@ -67,6 +73,9 @@ export default async function JourneysPage() {
           />
         </div>
 
+        <div className="mt-8">
+          <HistoryCard recommendations={history} />
+        </div>
       </Container>
     </section>
   );

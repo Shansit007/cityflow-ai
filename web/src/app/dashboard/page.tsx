@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 
 import { CITY_COOKIE_NAME } from "@/components/city/city-provider";
 import { DashboardHero } from "@/components/dashboard/dashboard-hero";
-import { HistoryCard } from "@/components/dashboard/history-card";
 import { PeakStrip } from "@/components/dashboard/peak-strip";
 import { RecommendationCard } from "@/components/dashboard/recommendation-card";
 import { UpdateNotice } from "@/components/dashboard/update-notice";
@@ -26,11 +25,7 @@ import { getCity } from "@/lib/cities";
 import { DEMAND_LEVEL_LABEL } from "@/lib/demand/demand-model";
 import { loadIssuesForUser } from "@/lib/roads/road-service";
 import { confidenceMeta, issueTypeLabel } from "@/lib/roads/types";
-import {
-  loadRecommendationHistory,
-  loadTodayForUser,
-  type JourneyToday,
-} from "@/lib/recommendation-service";
+import { loadTodayForUser, type JourneyToday } from "@/lib/recommendation-service";
 import { greetingForHour } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -42,7 +37,8 @@ export const metadata: Metadata = {
  *
  * It is built to answer one question above all others, in the first screenful:
  * WHEN SHOULD I LEAVE TODAY? Everything else — the demand strip, the map, the
- * routines, travel options, history — exists to support or explain that answer.
+ * routines and travel options — exists to support or explain that answer. The
+ * recommendation history table now lives on the journeys page ("My history").
  *
  * PHASE 6: a person may now have several routines, so the page shows ONE
  * RECOMMENDATION CARD PER ROUTINE running today, in the order they depart. The
@@ -69,13 +65,7 @@ export default async function DashboardPage({
   const cityCode = cookieStore.get(CITY_COOKIE_NAME)?.value ?? user.cityCode;
   const city = getCity(cityCode);
 
-  // `history` does not depend on anything `loadTodayForUser` computes, so the
-  // two run together instead of one waiting on the other — the page answers
-  // "when should I leave" as soon as that query returns, not after both do.
-  const [today, history] = await Promise.all([
-    loadTodayForUser(user.id, city.code),
-    loadRecommendationHistory(user.id),
-  ]);
+  const today = await loadTodayForUser(user.id, city.code);
 
   // No preferences record at all means onboarding was never finished.
   if (!today.profile) redirect("/onboarding");
@@ -125,18 +115,21 @@ export default async function DashboardPage({
           </div>
         ) : (
           <div className="mt-6 space-y-8">
-            {today.journeys.map((entry) => (
-              <JourneyBlock key={entry.journey.id} entry={entry} cityName={city.name} />
+            {today.journeys.map((entry, index) => (
+              <JourneyBlock
+                key={entry.journey.id}
+                entry={entry}
+                cityName={city.name}
+                /*
+                  Road sensing is one action, not one per routine — it shows
+                  once, under the first (primary) journey card, between its
+                  recommendation and its "Upcoming demand" strip.
+                */
+                showRoadSensing={index === 0}
+              />
             ))}
           </div>
         )}
-
-        {/* ------------------------------------- start a journey, right here */}
-        <div className="mt-6">
-          <RoadImpactDetector
-            areaLabel={primary?.journey.originArea ?? today.profile.homeArea}
-          />
-        </div>
 
         {/* --------------------------------------------- city-wide context */}
         <div className="mt-6 grid gap-6 lg:grid-cols-3">
@@ -175,10 +168,6 @@ export default async function DashboardPage({
           />
         </div>
 
-        <div className="mt-6">
-          <HistoryCard recommendations={history} />
-        </div>
-
         {/* ------------------------------------------------- honesty footer */}
         <p className="mt-8 text-center text-xs text-subtle">
           Figures here are predictions, not measurements, and every recommendation is a
@@ -196,7 +185,15 @@ export default async function DashboardPage({
  * One routine: its recommendation, the notice if the optimiser moved it, and
  * the demand strip that explains the suggestion.
  */
-function JourneyBlock({ entry, cityName }: { entry: JourneyToday; cityName: string }) {
+function JourneyBlock({
+  entry,
+  cityName,
+  showRoadSensing,
+}: {
+  entry: JourneyToday;
+  cityName: string;
+  showRoadSensing: boolean;
+}) {
   const { journey, engine, recommendation, savings } = entry;
 
   return (
@@ -239,6 +236,12 @@ function JourneyBlock({ entry, cityName }: { entry: JourneyToday; cityName: stri
         savingMethod={savings.method}
         journeyAtRecommended={savings.journeyAtRecommended}
       />
+
+      {showRoadSensing && (
+        <div className="mt-4">
+          <RoadImpactDetector areaLabel={journey.originArea} />
+        </div>
+      )}
 
       <div className="mt-4">
         <PeakStrip
