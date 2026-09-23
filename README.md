@@ -48,25 +48,84 @@ session cookie, and again against the database inside every page and API route.
 A municipal officer cannot reach a single person's travel routine anywhere in
 the product, and nothing in the municipal code path is able to query one.
 
+**One codebase, up to four deployments.** By default all three portals answer
+on one URL, which is all a local checkout or the Docker Compose stack ever
+needs. In production, each portal can instead be its own dedicated Vercel
+project — same repository, same database — restricted at the edge to only its
+own audience by setting `CITYFLOW_PORTAL` to `commuter`, `admin` or
+`municipal`. A combined deployment simply leaves the variable unset. Either
+way there is exactly one codebase to keep correct, never a forked admin build.
+
 ---
 
 ## Architecture
 
-```
-                    ┌──────────────────────────────┐
-   Browser ───────► │  Next.js 16 (TypeScript)     │
-                    │  3 portals, all API routes   │
-                    │  Prisma ── PostgreSQL        │
-                    └──────────┬───────────────────┘
-                               │ HTTP, 2.5s timeout,
-                               │ falls back silently
-                    ┌──────────▼───────────────────┐
-                    │  FastAPI (Python)            │
-                    │  Prophet + XGBoost forecast  │
-                    │  OR-Tools CP-SAT optimiser   │
-                    │  NetworkX corridors          │
-                    │  Redis cache (optional)      │
-                    └──────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Browser["Browser"]
+        CommuterUI["Commuter<br/>/dashboard /journeys /roads /assistant"]
+        AdminUI["Admin<br/>/admin"]
+        MunicipalUI["Municipal<br/>/municipal"]
+    end
+
+    subgraph Web["Next.js 16 App Router — cityflow-ai-web"]
+        Proxy["proxy.ts<br/>edge gate — session role +<br/>CITYFLOW_PORTAL deployment mode"]
+
+        subgraph Pages["Pages and API routes"]
+            CommuterRoutes["Commuter pages<br/>onboarding, dashboard, journeys,<br/>trip planner, road reporting, Saarthi"]
+            AdminRoutes["Admin Portal<br/>demand, reports, simulation export,<br/>municipal access, per-city config"]
+            MunicipalRoutes["Municipal Dashboard<br/>road issue workflow, workforce"]
+        end
+
+        subgraph Lib["Core logic — src/lib"]
+            Demand["demand/<br/>baseline + confirmed trips<br/>+ network events -&gt; recommendation<br/>city-wide re-optimiser"]
+            Chat["chat/ — Saarthi<br/>regex intent + time parser<br/>optional LLM fallback"]
+            RoadsLib["roads/<br/>reports + accelerometer<br/>confidence -&gt; priority"]
+            AdminLib["admin/<br/>aggregated analytics only"]
+            MunicipalLib["municipal/<br/>repair workflow state machine<br/>audit trail"]
+            AuthLib["auth/<br/>JWT session, bcrypt,<br/>anonymous CityFlow ID"]
+        end
+
+        Prisma["Prisma ORM"]
+    end
+
+    Postgres[("PostgreSQL — Neon<br/>ap-southeast-1<br/>functions pinned to sin1")]
+
+    subgraph MLService["FastAPI ML service — optional, degrades silently"]
+        Forecast["Prophet + XGBoost<br/>POST /forecast"]
+        Optimize["OR-Tools CP-SAT<br/>POST /optimize"]
+        Redis[("Redis cache<br/>optional")]
+    end
+
+    subgraph Externals["Optional external services"]
+        Groq["Groq LLM<br/>Saarthi fallback only"]
+        Resend["Resend<br/>verification / reset email"]
+        Meteo["Open-Meteo<br/>weather, no key needed"]
+    end
+
+    CommuterUI --> Proxy
+    AdminUI --> Proxy
+    MunicipalUI --> Proxy
+
+    Proxy --> Pages
+    CommuterRoutes --> Demand
+    CommuterRoutes --> Chat
+    CommuterRoutes --> RoadsLib
+    AdminRoutes --> AdminLib
+    MunicipalRoutes --> MunicipalLib
+    Chat --> Demand
+    Pages --> AuthLib
+    Lib --> Prisma
+    Prisma --> Postgres
+
+    Demand -. "HTTP, 2.5s timeout<br/>falls back to the built-in model" .-> MLService
+    Optimize --> Redis
+    Chat -. "optional" .-> Groq
+    AuthLib -. "optional" .-> Resend
+    Demand -. "optional" .-> Meteo
+
+    classDef optionalNode stroke-dasharray: 4 3,fill:#f6f6f6,stroke:#999,color:#555
+    class MLService,Forecast,Optimize,Redis,Externals,Groq,Resend,Meteo optionalNode
 ```
 
 **Why two services.** Prophet, XGBoost and OR-Tools are Python libraries with
@@ -79,6 +138,14 @@ own TypeScript demand model and the Admin Portal says which one produced the
 numbers on screen. Recommendations degrade in quality; they never disappear.
 That is deliberate — a free-tier container that sleeps after 15 minutes should
 not be able to take the product down during a demonstration.
+
+**Why the functions are pinned to Singapore.** Vercel's default region for a
+new project is Washington, D.C. (`iad1`), regardless of where its database
+actually lives. `web/vercel.json` pins this project's serverless functions to
+`sin1` so every request runs in the same region as the Neon database
+(`ap-southeast-1`) instead of round-tripping across the Pacific on every
+query — the difference between the two was hundreds of milliseconds on a warm
+request and several seconds on a cold one.
 
 ---
 
