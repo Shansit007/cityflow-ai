@@ -26,33 +26,46 @@ export default async function ProfilePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [profile, confirmedPlans, journeyCount] = await Promise.all([
+  const [profile, confirmedPlans, journeys] = await Promise.all([
     prisma.travelProfile.findUnique({ where: { userId: user.id } }),
     prisma.travelIntention.count({
       where: { userId: user.id, status: "CONFIRMED" },
     }),
-    prisma.journey.count({ where: { userId: user.id } }),
+    prisma.journey.findMany({ where: { userId: user.id } }),
   ]);
 
   // Nothing to edit yet — send them through onboarding first.
   if (!profile) redirect("/onboarding");
 
+  const journeyCount = journeys.length;
+
+  /*
+    With exactly one routine, that Journey — not the legacy TravelProfile
+    columns — is the truth for where/when this person travels (see the
+    matching comment in api/profile/route.ts). Seeding the form from it means
+    what the person sees here always matches their actual routine, and saving
+    it back can never clobber a Journey field (a since-adjusted departure
+    time, say) with a stale TravelProfile default they never touched.
+  */
+  const soleJourney = journeyCount === 1 ? journeys[0] : null;
+
   // Convert the database row into the exact shape the form works with.
   const initial: TravelProfileInput = {
-    homeArea: profile.homeArea,
-    destinationArea: profile.destinationArea,
-    destinationType: profile.destinationType,
-    primaryMode: profile.primaryMode,
-    usualDeparture: profile.usualDeparture,
-    requiredArrival: profile.requiredArrival,
-    typicalJourneyMinutes: profile.typicalJourneyMinutes,
-    travelDays: profile.travelDays as TravelProfileInput["travelDays"],
-    isFlexible: profile.isFlexible,
-    flexibilityMinutes: profile.flexibilityMinutes,
+    homeArea: soleJourney?.originArea ?? profile.homeArea,
+    destinationArea: soleJourney?.destinationArea ?? profile.destinationArea,
+    destinationType: soleJourney?.destinationType ?? profile.destinationType,
+    primaryMode: soleJourney?.mode ?? profile.primaryMode,
+    usualDeparture: soleJourney?.usualDeparture ?? profile.usualDeparture,
+    requiredArrival: soleJourney?.requiredArrival ?? profile.requiredArrival,
+    typicalJourneyMinutes:
+      soleJourney?.typicalJourneyMinutes ?? profile.typicalJourneyMinutes,
+    travelDays: (soleJourney?.travelDays ?? profile.travelDays) as TravelProfileInput["travelDays"],
+    isFlexible: soleJourney?.isFlexible ?? profile.isFlexible,
+    flexibilityMinutes: soleJourney?.flexibilityMinutes ?? profile.flexibilityMinutes,
     preferredModes: profile.preferredModes,
     maxAcceptableDelayMinutes: profile.maxAcceptableDelayMinutes,
-    willingToLeaveEarlier: profile.willingToLeaveEarlier,
-    willingToLeaveLater: profile.willingToLeaveLater,
+    willingToLeaveEarlier: soleJourney?.willingToLeaveEarlier ?? profile.willingToLeaveEarlier,
+    willingToLeaveLater: soleJourney?.willingToLeaveLater ?? profile.willingToLeaveLater,
     carpoolInterest: profile.carpoolInterest,
     publicTransportInterest: profile.publicTransportInterest,
     shareAggregatedDemand: profile.shareAggregatedDemand,
