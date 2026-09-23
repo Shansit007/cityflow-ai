@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { CITY_COOKIE_NAME } from "@/components/city/city-provider";
 import { DashboardHero } from "@/components/dashboard/dashboard-hero";
+import { LiveRefresh } from "@/components/dashboard/live-refresh";
 import { PeakStrip } from "@/components/dashboard/peak-strip";
 import { RecommendationCard } from "@/components/dashboard/recommendation-card";
 import { UpdateNotice } from "@/components/dashboard/update-notice";
@@ -88,6 +89,8 @@ export default async function DashboardPage({
 
   return (
     <section className="py-8 sm:py-12">
+      <LiveRefresh />
+
       <Container width="wide">
         <DashboardHero
           greeting={greeting}
@@ -129,6 +132,8 @@ export default async function DashboardPage({
                 showRoadSensing={index === 0}
               />
             ))}
+
+            {today.journeys.length === 1 && <AddReturnJourneyPrompt />}
           </div>
         )}
 
@@ -263,6 +268,31 @@ function JourneyBlock({
         Predicted demand around this departure in {cityName}.
       </p>
     </div>
+  );
+}
+
+/**
+ * Shown only when a person has exactly one routine set up. Most people have
+ * two — a morning commute and a return trip — and each one gets its own
+ * recommendation card, the same "square box" with its own recommended time,
+ * usual time and demand reading. This never invents a return journey; it
+ * just points at the same "Add a journey" flow the first routine came from.
+ */
+function AddReturnJourneyPrompt() {
+  return (
+    <Card>
+      <h2 className="text-base font-semibold text-fg">Add your return trip</h2>
+      <p className="mt-2 text-sm leading-relaxed text-muted">
+        You have one routine set up. Add the journey back — or any other
+        regular trip — and it gets its own recommended departure time here,
+        worked out the same way as this one.
+      </p>
+      <div className="mt-4">
+        <ButtonLink href="/journeys/new" variant="outline">
+          Add a journey
+        </ButtonLink>
+      </div>
+    </Card>
   );
 }
 

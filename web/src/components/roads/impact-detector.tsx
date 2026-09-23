@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -65,6 +66,8 @@ interface Detection {
 type State = "idle" | "unsupported" | "running" | "sending" | "sent" | "error";
 
 export function RoadImpactDetector({ areaLabel }: { areaLabel: string }) {
+  const router = useRouter();
+
   const [state, setState] = useState<State>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [detections, setDetections] = useState<Detection[]>([]);
@@ -246,6 +249,7 @@ export function RoadImpactDetector({ areaLabel }: { areaLabel: string }) {
       setMessage(data.message);
       detectionsRef.current = [];
       setDetections([]);
+      router.refresh();
     } catch {
       setState("error");
       setMessage("We could not reach CityFlow AI. Your detections were not saved.");
