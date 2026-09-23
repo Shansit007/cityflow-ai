@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
@@ -29,6 +30,13 @@ import {
 interface ProfileFormProps {
   /** The user's saved routine, already converted to the form's shape. */
   initial: TravelProfileInput;
+  /**
+   * How many `Journey` rows (routines) the person has. Saving this form only
+   * updates a specific routine's route and schedule when there is exactly
+   * one — with several, which one is meant is ambiguous, so the person is
+   * pointed at "My journeys" instead of having one silently overwritten.
+   */
+  journeyCount: number;
 }
 
 const SECTIONS = [
@@ -38,7 +46,7 @@ const SECTIONS = [
   { title: "Privacy", subtitle: "What CityFlow AI stores" },
 ] as const;
 
-export function ProfileForm({ initial }: ProfileFormProps) {
+export function ProfileForm({ initial, journeyCount }: ProfileFormProps) {
   const router = useRouter();
   const { cityCode } = useCity();
 
@@ -117,7 +125,11 @@ export function ProfileForm({ initial }: ProfileFormProps) {
       {formError && <Notice tone="error">{formError}</Notice>}
       {saved && (
         <Notice tone="success">
-          Your routine has been saved. Today&apos;s recommendation has been recalculated.
+          {journeyCount === 1
+            ? "Your routine has been saved. Today's recommendation has been recalculated."
+            : journeyCount === 0
+              ? "Your routine has been saved."
+              : "Your profile defaults have been saved. You have several routines, so this did not change any of their departure times or routes — edit a specific one on My journeys."}
         </Notice>
       )}
 
@@ -128,7 +140,24 @@ export function ProfileForm({ initial }: ProfileFormProps) {
             <p className="mt-1 text-sm text-muted">{section.subtitle}</p>
           </div>
 
-          {index === 0 && <StepJourney {...stepProps} />}
+          {index === 0 && (
+            <>
+              {journeyCount >= 2 && (
+                <div className="mb-4">
+                  <Notice tone="info">
+                    You have {journeyCount} routines. Saving here updates your profile
+                    defaults, not a specific trip — to change one routine&apos;s route or
+                    times, edit it on{" "}
+                    <Link href="/journeys" className="underline underline-offset-2">
+                      My journeys
+                    </Link>
+                    .
+                  </Notice>
+                </div>
+              )}
+              <StepJourney {...stepProps} />
+            </>
+          )}
           {index === 1 && <StepSchedule {...stepProps} />}
           {index === 2 && <StepPreferences {...stepProps} />}
           {index === 3 && <StepPrivacy {...stepProps} />}

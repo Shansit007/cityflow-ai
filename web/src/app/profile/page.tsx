@@ -26,11 +26,12 @@ export default async function ProfilePage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [profile, confirmedPlans] = await Promise.all([
+  const [profile, confirmedPlans, journeyCount] = await Promise.all([
     prisma.travelProfile.findUnique({ where: { userId: user.id } }),
     prisma.travelIntention.count({
       where: { userId: user.id, status: "CONFIRMED" },
     }),
+    prisma.journey.count({ where: { userId: user.id } }),
   ]);
 
   // Nothing to edit yet — send them through onboarding first.
@@ -111,7 +112,7 @@ export default async function ProfilePage() {
         </div>
 
         <div className="mt-8">
-          <ProfileForm initial={initial} />
+          <ProfileForm initial={initial} journeyCount={journeyCount} />
         </div>
       </Container>
     </section>
