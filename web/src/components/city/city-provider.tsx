@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -106,6 +107,8 @@ interface CityProviderProps {
 }
 
 export function CityProvider({ children, initialCityCode }: CityProviderProps) {
+  const router = useRouter();
+
   const [cityCode, setCityCodeState] = useState<CityCode>(
     initialCityCode ?? DEFAULT_CITY_CODE
   );
@@ -116,23 +119,53 @@ export function CityProvider({ children, initialCityCode }: CityProviderProps) {
   // against a stray auto-detect firing twice in React's Strict Mode.
   const detectStartedRef = useRef(false);
 
+  // Tracks the city that is currently active, independent of React's render
+  // cycle, so applyCityCode can tell whether a call actually changes
+  // anything even when it fires more than once before a re-render happens.
+  const cityCodeRef = useRef<CityCode>(initialCityCode ?? DEFAULT_CITY_CODE);
+
   // Read the saved preference once, on the client.
   useEffect(() => {
     const stored = window.localStorage.getItem(CITY_STORAGE_KEY);
     const resolved = getCity(stored ?? initialCityCode).code;
 
+    const changedFromServer = Boolean(initialCityCode) && resolved !== initialCityCode;
+
+    cityCodeRef.current = resolved;
     setCityCodeState(resolved);
     writeCityCookie(resolved);
     setReady(true);
+
+    // The server rendered with `initialCityCode` (from the cookie / profile
+    // at request time). If the browser's saved preference resolves to a
+    // different city, the page's already-rendered content (greeting,
+    // traffic status, demand numbers) would silently disagree with the nav
+    // and map unless we ask the server to re-render with the new cookie.
+    if (changedFromServer) router.refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCityCode]);
 
   /** Applies a newly detected or chosen city everywhere it needs to live. */
-  const applyCityCode = useCallback((code: CityCode, { persist }: { persist: boolean }) => {
-    setCityCodeState(code);
-    window.localStorage.setItem(CITY_STORAGE_KEY, code);
-    writeCityCookie(code);
-    if (persist) persistCityCode(code);
-  }, []);
+  const applyCityCode = useCallback(
+    (code: CityCode, { persist }: { persist: boolean }) => {
+      const changed = cityCodeRef.current !== code;
+
+      cityCodeRef.current = code;
+      setCityCodeState(code);
+      window.localStorage.setItem(CITY_STORAGE_KEY, code);
+      writeCityCookie(code);
+      if (persist) persistCityCode(code);
+
+      // Server components resolve the active city from the cookie at
+      // request time (dashboard greeting, traffic status, demand numbers,
+      // road issues). Refresh them the moment the client-side city actually
+      // changes — whether from the travel-plan form or geolocation — so the
+      // whole page always agrees on one city instead of splitting between
+      // server-rendered and client-rendered content.
+      if (changed) router.refresh();
+    },
+    [router]
+  );
 
   /** Manual selection. The travel-plan form is the only place that calls this. */
   const setCityCode = useCallback(
