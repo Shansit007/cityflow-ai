@@ -116,7 +116,15 @@ interface MultiChoiceGroupProps<T extends string> {
   error?: string;
 }
 
-/** Multi-choice card group (behaves as checkboxes). */
+/**
+ * Multi-choice card group (behaves as checkboxes).
+ *
+ * `values` defends against `undefined` even though callers are typed to
+ * always pass an array: a form whose initial values came from a database
+ * row (an existing journey's `travelDays`, for instance) can still hand this
+ * component `undefined` at runtime if that row's data is incomplete, and
+ * that used to crash the whole form instead of just showing nothing picked.
+ */
 export function MultiChoiceGroup<T extends string>({
   legend,
   description,
@@ -126,11 +134,13 @@ export function MultiChoiceGroup<T extends string>({
   columns = 2,
   error,
 }: MultiChoiceGroupProps<T>) {
+  const selected = values ?? [];
+
   function toggle(value: T) {
     onChange(
-      values.includes(value)
-        ? values.filter((existing) => existing !== value)
-        : [...values, value]
+      selected.includes(value)
+        ? selected.filter((existing) => existing !== value)
+        : [...selected, value]
     );
   }
 
@@ -148,21 +158,21 @@ export function MultiChoiceGroup<T extends string>({
         )}
       >
         {choices.map((choice) => {
-          const selected = values.includes(choice.value);
+          const isSelected = selected.includes(choice.value);
 
           return (
             <label
               key={choice.value}
               className={cn(
                 "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
-                selected
+                isSelected
                   ? "border-secondary bg-secondary-soft"
                   : "border-border-base bg-surface hover:bg-surface-2"
               )}
             >
               <input
                 type="checkbox"
-                checked={selected}
+                checked={isSelected}
                 onChange={() => toggle(choice.value)}
                 className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--cf-secondary)]"
               />
@@ -170,7 +180,7 @@ export function MultiChoiceGroup<T extends string>({
                 <span
                   className={cn(
                     "block text-sm",
-                    selected ? "font-semibold text-secondary" : "font-medium text-fg"
+                    isSelected ? "font-semibold text-secondary" : "font-medium text-fg"
                   )}
                 >
                   {choice.label}
