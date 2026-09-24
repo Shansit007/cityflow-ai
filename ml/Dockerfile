@@ -44,4 +44,9 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
     CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status==200 else 1)"
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# A single worker on purpose: this image runs on free-tier hosts (starting
+# around 512MB RAM), and Prophet + XGBoost + OR-Tools + scikit-learn already
+# use a meaningful slice of that just being imported. A second worker process
+# doubles that footprint for concurrency this service does not need yet --
+# it was seen killing the second worker outright on a 512MB instance.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
