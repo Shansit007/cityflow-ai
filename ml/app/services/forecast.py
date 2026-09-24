@@ -20,6 +20,12 @@ history it fits Prophet and says so. Only with enough history AND feature
 variation does it use both. Every response carries `method` and `confidence`, and
 the web app shows both — a forecast whose provenance is hidden is a forecast that
 will eventually be over-trusted.
+
+One more feature was added to the residual stage: a real-data-calibrated
+"what does a real day of urban traffic actually look like" index, read from
+`reference_profile.py` (source: a public traffic-sensor dataset, see that
+module's docstring). It is a SHAPE feature only -- XGBoost decides how much
+to trust it, and it never overrides the product's own India-anchored prior.
 """
 
 from __future__ import annotations
@@ -31,7 +37,7 @@ import numpy as np
 import pandas as pd
 
 from app.schemas import ForecastEvent, ForecastRequest, ForecastResponse, ForecastSlot
-from app.services import synthetic
+from app.services import reference_profile, synthetic
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +129,12 @@ def _features(stamps: pd.Series, events: list[ForecastEvent]) -> pd.DataFrame:
             "sin_time": np.sin(2 * np.pi * minutes / 1440),
             "cos_time": np.cos(2 * np.pi * minutes / 1440),
             "event_uplift": [_event_uplift(events, int(m)) for m in minutes],
+            # A real-world reference shape (see reference_profile.py), not a
+            # product decision -- XGBoost learns how much it matters.
+            "reference_traffic_index": [
+                reference_profile.reference_index(ts.date(), int(m))
+                for ts, m in zip(stamps, minutes)
+            ],
         }
     )
 
@@ -292,7 +304,8 @@ def _prophet_forecast(
             method = "prophet_xgboost"
             notes.append(
                 "Prophet supplied the seasonal shape; XGBoost corrected its residuals "
-                "using time-of-day, weekday and disruption features."
+                "using time-of-day, weekday, disruption and real-world reference-traffic "
+                "features."
             )
         except Exception as error:  # pragma: no cover - defensive
             # A residual model failing must never take the forecast down with

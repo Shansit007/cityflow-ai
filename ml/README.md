@@ -26,7 +26,10 @@ a prediction is never presented as a measurement.
 **XGBoost** — fitted to *Prophet's residuals*, not to demand. Prophet cannot see
 rain, a closed arterial road or a public event, so a gradient-boosted model
 picks up those conditional effects from tabular features while the seasonal
-structure stays interpretable.
+structure stays interpretable. One of those features, `reference_traffic_index`,
+is calibrated from a real public traffic-sensor dataset rather than defined by
+the product — see `docs/12-DEMAND-REFERENCE-DATASET.md` and
+`app/services/reference_profile.py`.
 
 **OR-Tools (CP-SAT)** — the actual point of the project. Telling one person that
 08:45 is quiet is easy; telling ten thousand people is a scheduling problem,

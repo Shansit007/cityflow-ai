@@ -1,0 +1,22 @@
+{
+  "$schema": "reference-traffic-profile-v1",
+  "source": {
+    "name": "Metro Interstate Traffic Volume Data Set",
+    "origin": "UCI Machine Learning Repository, donated by John Hogue",
+    "sensor": "Minnesota DOT ATR station 301, westbound I-94, Minneapolis-St Paul",
+    "url": "https://archive.ics.uci.edu/dataset/492/metro+interstate+traffic+volume",
+    "rows_used": 48204,
+    "date_range": "2012-10-02 to 2018-09-30 (hourly)"
+  },
+  "methodology": "Hourly traffic_volume averaged across all observed days, split by weekday vs weekend, then linearly rescaled per group onto the product's existing 6-100 demand-index convention (floor=6 matching ml/app/services/synthetic.py). This captures the RELATIVE shape of real observed urban traffic across a day (how flat vs peaked, how much quieter weekends are) as a feature for the XGBoost residual model. It intentionally does not override the product's own India-office-hours peak timing (9:00 / 18:30), since this sensor is a US interstate and its literal rush-hour clock time does not transfer to Indian commute patterns -- only its shape does.",
+  "weekday_hourly_index": [
+    11.58, 7.52, 6.0, 6.96, 14.47, 44.31, 86.85, 97.46,
+    89.05, 79.34, 71.08, 75.16, 78.7, 78.76, 83.45, 90.48,
+    100.0, 93.54, 71.98, 53.84, 46.56, 43.86, 35.12, 23.2
+  ],
+  "weekend_hourly_index": [
+    27.89, 16.11, 11.54, 6.43, 6.0, 12.2, 22.78, 34.55,
+    52.17, 70.35, 83.87, 92.28, 100.0, 99.76, 99.67, 99.29,
+    99.23, 94.81, 86.81, 72.9, 63.37, 59.69, 53.24, 37.13
+  ]
+}
