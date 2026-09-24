@@ -79,10 +79,15 @@ interface EventImpact {
 /**
  * Reads active network events for a city and date.
  *
- * NOTHING WRITES THESE AUTOMATICALLY YET. There is no accident, closure or
- * weather feed connected. Rows are entered by hand. The path exists so that
- * connecting a feed later is a matter of inserting rows — prediction,
- * recommendation, re-optimisation and notification already work end to end.
+ * NOTHING WRITES THESE AUTOMATICALLY YET. There is no accident or closure feed
+ * connected. Rows are entered by hand. The path exists so that connecting a
+ * feed later is a matter of inserting rows — prediction, recommendation,
+ * re-optimisation and notification already work end to end.
+ *
+ * Weather is NOT part of this table and is not what this comment is about —
+ * it already has its own live feed (Open-Meteo, no key needed), fetched
+ * directly in `recommendation-service.ts` via `lib/weather.ts` rather than
+ * being written here as a NetworkEvent row.
  */
 export async function loadEventImpacts(
   cityCode: CityCode,

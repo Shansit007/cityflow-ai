@@ -3,6 +3,7 @@ import type { SimulationRun } from "@prisma/client";
 import { appDateOnly, appLocalDate, appMinutesSinceMidnight } from "@/lib/app-time";
 import { getCity, type CityCode } from "@/lib/cities";
 import { prisma } from "@/lib/db";
+import { fetchWeather } from "@/lib/weather";
 import {
   buildAdjustedCurve,
   loadDemandContext,
@@ -427,7 +428,7 @@ export async function loadSystemHealth(
   }
   const responseMs = Date.now() - startedAt;
 
-  const [aggregateRows, optimisedToday, eventsActive, roadIssues, roadHandedOver] =
+  const [aggregateRows, optimisedToday, eventsActive, roadIssues, roadHandedOver, weather] =
     await Promise.all([
       prisma.demandSlotAggregate.count({ where: { cityCode, travelDate } }),
       prisma.recommendation.count({
@@ -436,6 +437,10 @@ export async function loadSystemHealth(
       prisma.networkEvent.count({ where: { cityCode, eventDate: travelDate, active: true } }),
       prisma.roadIssue.count({ where: { cityCode } }),
       prisma.roadIssue.count({ where: { cityCode, handedOverAt: { not: null } } }),
+      // Same live call `recommendation-service.ts` makes for real recommendations —
+      // this row reports whether it actually reached Open-Meteo just now, rather
+      // than assuming a feature the rest of the code already exercises.
+      fetchWeather(getCity(cityCode)),
     ]);
 
   return {
@@ -468,7 +473,14 @@ export async function loadSystemHealth(
         detail:
           eventsActive > 0
             ? `${eventsActive} active event${eventsActive === 1 ? "" : "s"} affecting demand`
-            : "No live accident, closure or weather feed is connected — events are entered by hand",
+            : "No live accident or closure feed is connected — events are entered by hand. (Weather is separate — see below.)",
+      },
+      {
+        name: "Weather",
+        status: weather ? "ok" : "not-connected",
+        detail: weather
+          ? `Open-Meteo reachable just now — ${weather.description.toLowerCase()}, ${weather.temperatureC}\u00b0C, ${weather.precipitationMm} mm forecast today`
+          : "Open-Meteo did not respond just now — recommendations fall back to no weather adjustment for this request",
       },
       {
         name: "Road-condition data",
